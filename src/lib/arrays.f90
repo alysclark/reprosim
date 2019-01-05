@@ -27,6 +27,32 @@ module arrays
 ! temporary, for debugging:
   real(dp) :: unit_before
 
+  type cell_type
+    integer :: ID
+    integer :: state
+    integer :: site(3)
+    logical :: Iphase
+    integer :: nspheres             ! =1 for Iphase, =2 for Mphase
+    real(dp) :: V            ! actual volume (um3)
+    real(dp) :: dVdt
+    real(dp) :: radius(2)    ! sphere radii (um)
+    real(dp) :: centre(3,2)  ! sphere centre positions
+    real(dp) :: d            ! centre separation distance (um)
+    real(dp) :: birthtime
+    real(dp) :: t_start_mitosis
+    real(dp) :: mitosis      ! level of mitosis (0 - 1)
+    real(dp) :: V_divide
+    real(dp) :: d_divide     ! centre separation distance at the end of mitosis
+    integer :: step
+    integer :: tag
+  !NULLIFY() instead.
+    integer(2) :: ctype
+    integer(2) :: lastdir
+    integer :: dtotal(3)
+    integer :: nbrs
+    !type(neighbour_type) :: nbrlist(100)
+end type
+
   private
   public set_node_field_value, elem_field, num_elems, elem_nodes, node_xyz, nodes, elems, &
     num_nodes, units, num_units, unit_field, node_field, dp, elem_cnct, elem_ordrs, elem_direction, &
@@ -40,7 +66,6 @@ contains
     integer, intent(in) :: row, col
     real(dp), intent(in) :: value
     
-
     node_field(row, col) = value
 	
   end subroutine set_node_field_value

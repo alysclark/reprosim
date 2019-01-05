@@ -1,13 +1,7 @@
 module pressure_resistance_flow
-!*Description:* This module contains tools that are used to solve systems of equations representing steady pressure, resistance and flow problems in any branching geometry.
-! 
-! Descriptions for subroutines that are not included in the subroutine:
-!                                                                        
-!*calc_sparse_1d_tree:* sets up the system of equations to solve for pressure and flow. 
-! It populates the SparseCol,SparseRow, SparceVal and RHS vectors.
-!                                                                                 
-!*boundary_conditions:* Defines boundary conditions for prq problems
-!
+!*Description:* This module contains tools that are used to solve systems of equations
+! representing steady pressure, resistance and flow problems in any branching geometry.
+
   use solve, only: BICGSTAB_LinSolv,pmgmres_ilu_cr
   implicit none
   !Module parameters

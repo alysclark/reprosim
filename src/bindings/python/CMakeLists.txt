@@ -14,6 +14,7 @@ endif()
 
 set(INTERFACE_SRCS
   ../interface/arrays.i
+  ../interface/abm_models.i
   ../interface/diagnostics.i
   ../interface/exports.i
   ../interface/geometry.i
