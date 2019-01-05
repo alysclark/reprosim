@@ -5,3 +5,6 @@
 
 #IDE project docs
 .project
+
+#IDE metadata docs
+.metadata
