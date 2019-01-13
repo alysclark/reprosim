@@ -8,6 +8,7 @@ module exports
   public export_1d_elem_geometry,export_node_geometry,export_node_field,&
        export_terminal_perfusion,&
        export_1d_elem_field
+  public export_cell_location,export_cell_exnode
 
 contains
 !!!################################################################
@@ -289,5 +290,50 @@ contains
   end subroutine export_node_field
 
 !!! ###########################################################
+
+subroutine export_cell_location(filename,cell_population)
+    use arrays,only: dp,num_cells,cell_list,cell_stat
+    use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_CELL_LOCATION" :: EXPORT_CELL_LOCATION
+
+!!! Parameters
+    character(len=MAX_FILENAME_LEN),intent(in) :: filename
+    integer, intent(in) :: cell_population
+
+    integer :: kcell
+
+    open(10, file=filename, status='replace')
+    do kcell = 1,num_cells
+      if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+        write(10,'(3(F12.6,1X))') cell_list(kcell)%centre(:,1)
+      endif
+    enddo
+    close(10)
+end subroutine export_cell_location
+
+
+!!! ###########################################################
+
+subroutine export_cell_exnode(filename,cell_population)
+    use arrays,only: dp,num_cells,cell_list,cell_stat
+    use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_CELL_EXNODE" :: EXPORT_CELL_EXNODE
+
+!!! Parameters
+    character(len=MAX_FILENAME_LEN),intent(in) :: filename
+    integer, intent(in) :: cell_population
+
+    integer :: kcell
+
+    open(10, file=filename, status='replace')
+    do kcell = 1,num_cells
+      if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+       !write(10,'(2X,2(1X,F12.6))') (node_field(nj_field,np))
+      endif
+    enddo
+    close(10)
+end subroutine export_cell_exnode
 
 end module exports

@@ -136,4 +136,54 @@ contains
 
   end subroutine export_node_field_c
 
+!!!##########################################################################
+
+  subroutine export_cell_location_c(filename, filename_len, cell_population) bind(C, name="export_cell_location_c")
+
+    use iso_c_binding, only: c_ptr
+    use utils_c, only: strncpy
+    use other_consts, only: MAX_STRING_LEN, MAX_FILENAME_LEN
+    use exports, only: export_cell_location
+    implicit none
+
+    integer,intent(in) :: filename_len
+    type(c_ptr), value, intent(in) :: filename
+    integer, intent(in) :: cell_population
+    character(len=MAX_FILENAME_LEN) :: filename_f
+
+    call strncpy(filename_f, filename, filename_len)
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_export_cell_location(filename_f, cell_population)
+#else
+    call export_cell_location(filename_f, cell_population)
+#endif
+
+  end subroutine export_cell_location_c
+
+!!!##########################################################################
+
+  subroutine export_cell_exnode_c(filename, filename_len, cell_population) bind(C, name="export_cell_exnode_c")
+
+    use iso_c_binding, only: c_ptr
+    use utils_c, only: strncpy
+    use other_consts, only: MAX_STRING_LEN, MAX_FILENAME_LEN
+    use exports, only: export_cell_exnode
+    implicit none
+
+    integer,intent(in) :: filename_len
+    type(c_ptr), value, intent(in) :: filename
+    integer, intent(in) :: cell_population
+    character(len=MAX_FILENAME_LEN) :: filename_f
+
+    call strncpy(filename_f, filename, filename_len)
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_export_cell_exnode(filename_f, cell_population)
+#else
+    call export_cell_exnode(filename_f, cell_population)
+#endif
+
+  end subroutine export_cell_exnode_c
+
 end module exports_c

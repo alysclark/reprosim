@@ -3,6 +3,7 @@ project(ReprosimCBindings LANGUAGES C Fortran)
 
 set(C_FORTRAN_LIB_SRCS
     arrays.f90
+    abm_forces.f90
     abm_models.f90
     diagnostics.f90
     exports.f90
@@ -13,6 +14,7 @@ set(C_FORTRAN_LIB_SRCS
 )
 set(C_C_LIB_SRCS
     arrays.c
+    abm_forces.c
     abm_models.c
     diagnostics.c
     exports.c
@@ -25,6 +27,7 @@ set(C_C_LIB_SRCS
 set(C_LIB_HDRS
   symbol_export.h
   arrays.h
+  abm_forces.h
   abm_models.h
   diagnostics.h
   exports.h

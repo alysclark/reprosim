@@ -1,9 +1,11 @@
 module math_utilities
 !*Description:* This module contains solvers required for blood vessel problems
 !
+  use arrays, only: dp
   implicit none
   private
   public ax_cr,diagonal_pointer_cr,ilu_cr,lus_cr,mult_givens,rearrange_cr
+  public unit_vector,vector_length
 
 contains
 !
@@ -269,6 +271,43 @@ subroutine diagonal_pointer_cr ( n, ia, ja, ua )
 
     return
   end subroutine rearrange_cr
+  !!!###############################################################
+
+  function unit_vector(A)
+
+    !###  Calculates the unit vector for an arbitrary 3x1 vector
+
+    real(dp),intent(in) :: A(*)
+    real(dp) :: length_a,unit_vector(3)
+
+    length_a = vector_length(A)
+    if(length_a.gt.1.0e-6_dp)then
+       unit_vector(1:3) = A(1:3)/length_a
+    else
+       WRITE(*,*) ' >>WARNING: Cannot normalise a zero length vector'
+       WRITE(*,*) ' We recommend debugging, but hit enter to continue'
+       read(*,*)
+    endif
+
+  end function unit_vector
+
+  !!!##################################################
+
+  function vector_length(A)
+
+    !###  Calculates the length of a 3x1 vector
+
+    real(dp),intent(in) :: A(*)
+    real(dp) :: vector_length
+    integer :: i
+
+    vector_length = 0.0_dp
+    do i=1,3
+       vector_length = vector_length + A(i)*A(i)
+    enddo
+    vector_length = dsqrt(vector_length)
+
+  end function vector_length
 
 
 end module math_utilities

@@ -2,7 +2,9 @@
 # The list of all source files that are required to build the library
 set(LIB_SRCS
   arrays.f90
+  abm_forces.f90
   abm_models.f90
+  cellpacker.f90
   diagnostics.f90
   exports.f90
   geometry.f90
