@@ -43,4 +43,23 @@ end subroutine calc_random_forces_c
 
   end subroutine calc_saghian_chemo_forces_c
 
+!###################################################################################
+
+  subroutine calc_saghian_cell_cell_c(cell_population, force_field, r0,r1,a,b)bind(C, name="calc_saghian_cell_cell_c")
+    use arrays, only: dp
+    use abm_forces, only: calc_saghian_cell_cell
+    implicit none
+
+    integer,intent(in) :: cell_population
+    integer, intent(in) :: force_field
+    real(dp), intent(in) :: r0,r1,a,b
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_calc_saghian_cell_cell(cell_population, force_field,r0,r1,a,b)
+#else
+    call calc_saghian_cell_cell(cell_population, force_field,r0,r1,a,b)
+#endif
+
+  end subroutine calc_saghian_cell_cell_c
+
 end module abm_forces_c

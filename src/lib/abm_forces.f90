@@ -11,6 +11,7 @@ module abm_forces
   private
   public calc_random_forces
   public calc_saghian_chemo_forces
+  public calc_saghian_cell_cell
 contains
 !
 !###################################################################################
@@ -92,15 +93,46 @@ subroutine calc_saghian_chemo_forces(cell_population,force_field,fradial,cradial
         cell_field(kcell, force_field, :) = faxial *[0, 0, 1]*d*EXP(caxial*r) + &
             fradial *[1, 0, 0]*r*cos(theta)*exp(cradial*r) + &
             fradial *[0, 1, 0]*r*sin(theta)*exp(cradial*r)
-        write(*,*) cell_field(kcell, force_field, :)
+        if(diagnostics_level.gt.1)then
+          write(*,*) cell_field(kcell, force_field, :)
+        endif
       endif 
     enddo
 
     call enter_exit(sub_name,2)
 end subroutine calc_saghian_chemo_forces
 
+!
+!###################################################################################
+!
+subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
+    use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field,plug_params
+    use other_consts, only: PI
+    use diagnostics, only: enter_exit,get_diagnostics_level
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALC_SAGHIAN_CELL_CELL" :: CALC_SAGHIAN_CELL_CELL
+    integer, intent(in) :: cell_population
+    integer, intent(in) :: force_field
+    real(dp), intent(in) :: r0,r1,a,b
 
+    integer :: kcell,knbr
 
+    integer :: diagnostics_level
+    character(len=60) :: sub_name
+
+    sub_name = 'calc_saghian_cell_cell'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    do kcell = 1,num_cells
+     write(*,*) cell_list(kcell)%nbrs, cell_list(kcell)%nearest_dist
+     !do knbr = 1,cell_list(kcell)%nbrs
+
+     !enddo
+
+    enddo
+
+    call enter_exit(sub_name,2)
+end subroutine calc_saghian_cell_cell
 !
 !###################################################################################
 !

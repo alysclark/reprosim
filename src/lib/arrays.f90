@@ -32,6 +32,7 @@ module arrays
     integer :: indx
 !   logical :: incontact
     logical*1 :: contact(2,2)
+    real(dp) :: distance
   end type
 
   type cell_type
@@ -57,6 +58,7 @@ module arrays
     integer(2) :: lastdir
     integer :: dtotal(3)
     integer :: nbrs
+    real(dp) :: nearest_dist !distance from nearest neighbout
     type(neighbour_type) :: nbrlist(100)
   end type cell_type
 
@@ -65,7 +67,7 @@ module arrays
   type abm_control_params
     real(dp) :: delta_t_min         !minimum time step
     real(dp) :: delta_t             !default time strp
-    real(dp) :: delta_min = 0.02_dp    !minimum movement in a single timestep?
+    real(dp) :: delta_min = 0.3_dp    !minimum allowed separation between cells (um)
     real(dp) :: delta_max = 0.10_dp    !maximum movement in a single timestep
     real(dp) :: current_time
     real(dp) :: used_delta_t

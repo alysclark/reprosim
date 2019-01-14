@@ -425,11 +425,11 @@ subroutine setup_nbrlists
     ! Note that now we seek neighbour only for cell_stat%ALIVE cells, but the neighbours can include
     ! WALL cells (which are immobile), because they also exert force.
     !-----------------------------------------------------------------------------------------
-    use arrays, only: dp,cell_type,cell_list, num_cells,plug_params, cell_stat,neighbour_type
+    use arrays, only: dp,cell_type,cell_list, num_cells,plug_params, cell_stat,neighbour_type,abm_control
     use other_consts
     use diagnostics, only: enter_exit,get_diagnostics_level
     type(cell_type), pointer :: cp1, cp2
-    real(dp) :: R1, c1(3), R2, c2(3), v(3), d2, d, Rsum, dfactor, dmin
+    real(dp) :: R1, c1(3), R2, c2(3), v(3), d2, d, Rsum, dfactor, dmin,nearest_dist
     integer :: kcell, k2, k, isphere1, nspheres1, isphere2, nspheres2, nbrs
     type(neighbour_type) :: nbrlist(100)
     logical :: near, incontact, contact(2,2)
@@ -452,6 +452,7 @@ subroutine setup_nbrlists
         !endif
         nspheres1 = cp1%nspheres
         nbrs = 0
+        nearest_dist = 1.0e10_dp
         do k2 = 1,num_cells
             if (k2 == kcell) cycle
             cp2 => cell_list(k2)
@@ -470,7 +471,8 @@ subroutine setup_nbrlists
                     v = c2 - c1
                     d2 = dot_product(v,v)
                     d = sqrt(d2)
-                    dmin = min(d,dmin)
+                    dmin = min(d,dmin) !Overall minimum distance
+
                     !if(diagnostics_level.gt.1)then
                     !    write(*,'(a,9f8.1)') 'c1,R1,c2,R2,d: ',c1,R1,c2,R2,d
                     !endif
@@ -508,13 +510,20 @@ subroutine setup_nbrlists
                 endif
                 nbrlist(nbrs)%indx = k2
                 nbrlist(nbrs)%contact = contact
+                nbrlist(nbrs)%distance = d
+                if(dmin.lt.nearest_dist)then
+                  nearest_dist = d
+                endif
             !           if (cp2%state == WALL) write(*,*) 'WALL nbr: ',kcell,k2
             endif
         enddo
         cp1%nbrs = nbrs
         cp1%nbrlist(1:nbrs) = nbrlist(1:nbrs)
+        cp1%nearest_dist = nearest_dist
 
     enddo
+
+    abm_control%delta_max = max(0.5*dmin-abm_control%delta_min, abm_control%delta_min) !This means cells can never'hit each other' and ensures sep
 
     call enter_exit(sub_name,2)
 end subroutine setup_nbrlists
