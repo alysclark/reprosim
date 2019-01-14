@@ -107,7 +107,6 @@ end subroutine calc_saghian_chemo_forces
 subroutine get_random_dir(dr)
   use arrays, only: dp
   use math_utilities, only: unit_vector
-  use par_zig_mod, only: par_uni
   real(dp) :: dr(3)
   real(dp) :: r
   integer :: i
