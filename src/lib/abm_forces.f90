@@ -108,13 +108,15 @@ end subroutine calc_saghian_chemo_forces
 subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
     use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field,plug_params
     use other_consts, only: PI
+    use math_utilities, only: unit_vector
     use diagnostics, only: enter_exit,get_diagnostics_level
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALC_SAGHIAN_CELL_CELL" :: CALC_SAGHIAN_CELL_CELL
     integer, intent(in) :: cell_population
     integer, intent(in) :: force_field
     real(dp), intent(in) :: r0,r1,a,b
 
-    integer :: kcell,knbr
+    integer :: kcell,knbr,nbridx
+    real(dp) :: dx, c, delta, xcross,F,x,Fdir(3),unitFdir(3),rad1,rad2
 
     integer :: diagnostics_level
     character(len=60) :: sub_name
@@ -123,11 +125,33 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
-    do kcell = 1,num_cells
-     write(*,*) cell_list(kcell)%nbrs, cell_list(kcell)%nearest_dist
-     !do knbr = 1,cell_list(kcell)%nbrs
+    dx = r1 - r0
+    c = -b*8.0_dp - 4.0_dp*a/dx**2
+    delta = dx**2.0_dp + 4.0_dp*a/c
+    xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
 
-     !enddo
+    do kcell = 1,num_cells
+     !write(*,*) cell_list(kcell)%nbrs, cell_list(kcell)%nearest_dist,xcross
+     do knbr = 1,cell_list(kcell)%nbrs
+       nbridx = cell_list(kcell)%nbrlist(knbr)%indx
+       Fdir =cell_list(nbridx)%centre(:,1)-cell_list(kcell)%centre(:,1)
+       unitFdir = unit_vector(Fdir)
+       rad1 = cell_list(kcell)%radius(1)
+       rad2 = cell_list(nbridx)%radius(1)
+       x= cell_list(kcell)%nbrlist(knbr)%distance/(rad1+rad2)
+       if (x > xcross) then
+         F = 0.0_dp
+       elseif (x < r0) then ! should not happen with adaptive time stepping
+         write(*,'(a,3e12.3,2f8.3,a,L2)') 'Error: get_force: x < x0: '!,R1,R2,d,x,x0_force,' incontact: ',incontact
+         F = 0.0_dp
+       else
+         F = a/((x-r0)*(r1-x)) + c
+       endif
+
+       cell_field(kcell, force_field, :) = F*unitFdir
+      ! write(*,*) cell_field(kcell, force_field, :),rad1,rad2,x
+
+     enddo
 
     enddo
 

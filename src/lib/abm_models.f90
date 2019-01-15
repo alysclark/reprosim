@@ -511,7 +511,7 @@ subroutine setup_nbrlists
                 nbrlist(nbrs)%indx = k2
                 nbrlist(nbrs)%contact = contact
                 nbrlist(nbrs)%distance = d
-                if(dmin.lt.nearest_dist)then
+                if(d.lt.nearest_dist)then
                   nearest_dist = d
                 endif
             !           if (cp2%state == WALL) write(*,*) 'WALL nbr: ',kcell,k2
@@ -523,7 +523,7 @@ subroutine setup_nbrlists
 
     enddo
 
-    abm_control%delta_max = max(0.5*dmin-abm_control%delta_min, abm_control%delta_min) !This means cells can never'hit each other' and ensures sep
+    abm_control%delta_max = max(0.5_dp*(dmin-abm_control%delta_min), 2.0_dp) !This means cells can never'hit each other' and ensures sep
 
     call enter_exit(sub_name,2)
 end subroutine setup_nbrlists

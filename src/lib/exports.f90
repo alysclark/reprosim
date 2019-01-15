@@ -306,7 +306,7 @@ subroutine export_cell_location(filename,cell_population)
     open(10, file=filename, status='replace')
     do kcell = 1,num_cells
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
-        write(10,'(3(F12.6,1X))') cell_list(kcell)%centre(:,1)
+        write(10,'(I12,X,3(F12.6,1X))') kcell,cell_list(kcell)%centre(:,1)
       endif
     enddo
     close(10)
