@@ -67,7 +67,8 @@ module arrays
   type abm_control_params
     real(dp) :: delta_t_min         !minimum time step
     real(dp) :: delta_t             !default time strp
-    real(dp) :: delta_min = 0.12_dp    !minimum allowed separation between cells (um)
+    real(dp) :: delta_min = 15.0_dp    !minimum allowed separation between cells (um)
+    real(dp) :: d_nbr_limit = 2.0_dp*2.0_dp*20.0_dp
     real(dp) :: delta_max = 0.10_dp    !maximum movement in a single timestep
     real(dp) :: current_time
     real(dp) :: used_delta_t
@@ -129,7 +130,6 @@ module arrays
     integer :: nwallcells
     integer :: nlist
     integer :: ndt
-    real(dp) :: d_nbr_limit = 1.5_dp*2.0_dp*20.0_dp
     logical :: use_packing = .True.
     logical :: use_loosepack = .False.
     logical :: use_makeRing = .False.

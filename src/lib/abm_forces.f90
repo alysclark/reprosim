@@ -106,7 +106,7 @@ end subroutine calc_saghian_chemo_forces
 !###################################################################################
 !
 subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
-    use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field,plug_params
+    use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field,plug_params,abm_control
     use other_consts, only: PI
     use math_utilities, only: unit_vector
     use diagnostics, only: enter_exit,get_diagnostics_level
@@ -126,7 +126,7 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
     call get_diagnostics_level(diagnostics_level)
 
     dx = r1 - r0
-    c = -b*8.0_dp - 4.0_dp*a/dx**2
+    c = -b*8.0_dp - 4.0_dp*a/dx**2.0_dp
     delta = dx**2.0_dp + 4.0_dp*a/c
     xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
 
@@ -135,24 +135,25 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
      do knbr = 1,cell_list(kcell)%nbrs
        nbridx = cell_list(kcell)%nbrlist(knbr)%indx
        Fdir =cell_list(nbridx)%centre(:,1)-cell_list(kcell)%centre(:,1)
-       unitFdir = unit_vector(Fdir)
+       unitFdir = -1.0_dp*unit_vector(Fdir)
        rad1 = cell_list(kcell)%radius(1)
        rad2 = cell_list(nbridx)%radius(1)
        x= cell_list(kcell)%nbrlist(knbr)%distance/(rad1+rad2)
        if (x > xcross) then
          F = 0.0_dp
        elseif (x < r0) then ! should not happen with adaptive time stepping
-         write(*,'(a,3e12.3,2f8.3,a,L2)') 'Error: get_force: x < x0: '!,R1,R2,d,x,x0_force,' incontact: ',incontact
+         write(*,*) 'Error: get_force: x < x0: ',x,r0,cell_list(kcell)%nbrlist(knbr)%distance,rad1,rad2,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
+
+         pause
          F = 0.0_dp
        else
-         F = a/((x-r0)*(r1-x)) + c
+         F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
        endif
 
-       cell_field(kcell, force_field, :) = F*unitFdir
-      ! write(*,*) cell_field(kcell, force_field, :),rad1,rad2,x
+       cell_field(kcell, force_field, :) = cell_field(kcell, force_field, :) + F*unitFdir
 
      enddo
-
+       write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
     enddo
 
     call enter_exit(sub_name,2)

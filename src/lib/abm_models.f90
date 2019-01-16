@@ -445,11 +445,6 @@ subroutine setup_nbrlists
     do kcell = 1,num_cells
         cp1 => cell_list(kcell)
         if (cp1%state /= cell_stat%ALIVE) cycle
-        !if (cp1%Iphase) then
-        !   nspheres1 = 1
-        !else
-        !   nspheres1 = 2
-        !endif
         nspheres1 = cp1%nspheres
         nbrs = 0
         nearest_dist = 1.0e10_dp
@@ -493,7 +488,7 @@ subroutine setup_nbrlists
                     !        endif
                     !    endif
                     !else
-                    if (d < plug_params%d_nbr_limit) then
+                    if (d < abm_control%d_nbr_limit) then
                         near = .true.
                         exit
                     endif
@@ -514,15 +509,15 @@ subroutine setup_nbrlists
                 if(d.lt.nearest_dist)then
                   nearest_dist = d
                 endif
-            !           if (cp2%state == WALL) write(*,*) 'WALL nbr: ',kcell,k2
             endif
         enddo
         cp1%nbrs = nbrs
         cp1%nbrlist(1:nbrs) = nbrlist(1:nbrs)
         cp1%nearest_dist = nearest_dist
+        !write(*,*) kcell, cp1%nbrs,cp1%nearest_dist
 
     enddo
-
+    write(*,*) 'End nbrs', dmin
     abm_control%delta_max = max(0.5_dp*(dmin-abm_control%delta_min), 2.0_dp) !This means cells can never'hit each other' and ensures sep
 
     call enter_exit(sub_name,2)
@@ -564,6 +559,7 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     do kcell = 1, num_cells
       do kforce = 1,num_cell_f
         force(kcell,:) = force(kcell,:) + cell_field(kcell,kforce,:)
+        write(*,*) kforce, vector_length(cell_field(kcell,kforce,:))
       enddo
       force_mag =vector_length(force(kcell,:))
       !write(*,*) force_mag/kdrag
@@ -581,6 +577,8 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
         max_dx = dt_move*max_force/kdrag
       enddo
     endif
+     write(*,*) 'dx max', max_dx, dt_move, abm_control%delta_max
+     !pause
     if(dt_move < abm_control%delta_t_min)then
       dt_move = abm_control%delta_t_min
     endif
@@ -616,6 +614,8 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     if(diagnostics_level.gt.1)then
         write(*,*) 'current_time', abm_control%current_time
     endif
+    call setup_nbrlists
+
     call enter_exit(sub_name,2)
 end subroutine move_cells_force
 
