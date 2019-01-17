@@ -139,6 +139,7 @@ subroutine create_cell(kcell,rsite,ctype,gen,tag,region,dividing)
     cp%dtotal = 0
     cp%mitosis = 0
     cp%Iphase = .true.
+    cp%wall_distance = 10.0e6_dp !initialised to very high number
 
 
 
@@ -253,7 +254,7 @@ subroutine place_cells_plug
 !-----------------------------------------------------------------------------------------
 
     use arrays, only: dp,cell_type,cell_list, num_cells,plug_params, TROPHO_CELL
-    use other_consts
+    use other_consts, only: PI
     use diagnostics, only: enter_exit,get_diagnostics_level
     use cellpacker
 
@@ -270,14 +271,14 @@ subroutine place_cells_plug
     sub_name = 'place_cells_plug'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
-
-    open(out_unit, file = 'cell_initialisation.txt',action='write')
-
+    if(diagnostics_level.gt.1)then
+      open(out_unit, file = 'cell_initialisation.txt',action='write')
+    endif
     if (plug_params%use_packing .or. plug_params%use_makeRing) then
-        z0 = (plug_params%plug_zmax + plug_params%plug_zmin)/2
+        z0 = (plug_params%plug_zmax + plug_params%plug_zmin)/2.0_dp
         xrng = plug_params%tube_radius
         zrng = plug_params%plug_zmax - plug_params%plug_zmin
-        dz = zrng/2
+        dz = zrng/2.0_dp
         plug_centre = [0.d0, 0.d0, z0]
         cell_radius = plug_params%Raverage
         kcell = 0
@@ -287,15 +288,15 @@ subroutine place_cells_plug
         cell_radius = plug_params%Raverage
         dz=(plug_params%plug_zmax-plug_params%plug_zmin)
         xrng = plug_params%tube_radius
-        nxx = (xrng/(2*cell_radius))*2
-        nzz = dz/(2*cell_radius) + 1
+        nxx = (xrng/(2.0_dp*cell_radius))*2.0_dp
+        nzz = dz/(2.0_dp*cell_radius) + 1.0_dp
     endif
 
 
     if (plug_params%use_packing) then
-        nxx = 1.2*xrng/cell_radius
-        nzz = 1.5*dz/cell_radius
-        nyy = 1.3*nxx
+        nxx = 1.2_dp*xrng/cell_radius
+        nzz = 1.5_dp*dz/cell_radius
+        nyy = 1.3_dp*nxx
 
         call SelectCellLocations(nxx, nyy, nzz, cell_radius, block_centre)
         if(diagnostics_level.gt.1)then
@@ -311,7 +312,7 @@ subroutine place_cells_plug
             centre = cloc(ix,iy,iz)%centre - block_centre + plug_centre
             if (centre(3) < plug_params%plug_zmin .or. centre(3) > plug_params%plug_zmax) cycle
             u = centre(3) - z0
-            h = (1 + cos(u*PI/dz))*plug_params%plug_hmax/2
+            h = (1 + cos(u*PI/dz))*plug_params%plug_hmax/2.0_dp
             kcell = kcell + 1
             rsite = centre
             if(diagnostics_level.gt.1)then
@@ -513,6 +514,13 @@ subroutine setup_nbrlists
         enddo
         cp1%nbrs = nbrs
         cp1%nbrlist(1:nbrs) = nbrlist(1:nbrs)
+
+
+        if(abm_control%Wall)then
+          if(cp1%wall_distance.lt.nearest_dist)then
+            nearest_dist = cp1%wall_distance
+          endif
+        endif
         cp1%nearest_dist = nearest_dist
         !write(*,*) kcell, cp1%nbrs,cp1%nearest_dist
 

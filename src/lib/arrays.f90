@@ -58,7 +58,9 @@ module arrays
     integer(2) :: lastdir
     integer :: dtotal(3)
     integer :: nbrs
-    real(dp) :: nearest_dist !distance from nearest neighbout
+    real(dp) :: nearest_dist !distance from nearest neighbour
+    real(dp) :: wall_distance !distance from wall
+    real(dp) :: wall_dir(3) !wall direction
     type(neighbour_type) :: nbrlist(100)
   end type cell_type
 
@@ -67,11 +69,12 @@ module arrays
   type abm_control_params
     real(dp) :: delta_t_min         !minimum time step
     real(dp) :: delta_t             !default time strp
-    real(dp) :: delta_min = 15.0_dp    !minimum allowed separation between cells (um)
+    real(dp) :: delta_min = 6.0_dp    !minimum allowed separation between cells (um)
     real(dp) :: d_nbr_limit = 2.0_dp*2.0_dp*20.0_dp
     real(dp) :: delta_max = 0.10_dp    !maximum movement in a single timestep
     real(dp) :: current_time
     real(dp) :: used_delta_t
+    logical :: Wall = .True. !Is there a wall in the model?
     !delta_tmove = dt_min
     !ndt = 5
   end type abm_control_params

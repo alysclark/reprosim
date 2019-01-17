@@ -12,6 +12,7 @@ module abm_forces
   public calc_random_forces
   public calc_saghian_chemo_forces
   public calc_saghian_cell_cell
+  public calc_saghian_cell_wall
 contains
 !
 !###################################################################################
@@ -131,7 +132,6 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
     xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
 
     do kcell = 1,num_cells
-     !write(*,*) cell_list(kcell)%nbrs, cell_list(kcell)%nearest_dist,xcross
      do knbr = 1,cell_list(kcell)%nbrs
        nbridx = cell_list(kcell)%nbrlist(knbr)%indx
        Fdir =cell_list(nbridx)%centre(:,1)-cell_list(kcell)%centre(:,1)
@@ -142,10 +142,9 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
        if (x > xcross) then
          F = 0.0_dp
        elseif (x < r0) then ! should not happen with adaptive time stepping
-         write(*,*) 'Error: get_force: x < x0: ',x,r0,cell_list(kcell)%nbrlist(knbr)%distance,rad1,rad2,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
-
-         pause
+         write(*,*) 'Error: get cell force: x < x0: ',x,r0,cell_list(kcell)%nbrlist(knbr)%distance,rad1,rad2,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
          F = 0.0_dp
+         pause
        else
          F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
        endif
@@ -153,11 +152,102 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
        cell_field(kcell, force_field, :) = cell_field(kcell, force_field, :) + F*unitFdir
 
      enddo
+     if(diagnostics_level.gt.1)then
        write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
+     endif
     enddo
 
     call enter_exit(sub_name,2)
 end subroutine calc_saghian_cell_cell
+
+!
+!###################################################################################
+!
+subroutine calc_saghian_cell_wall(cell_population,force_field,r0,r1,a,b)
+    use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field,plug_params,abm_control
+    use other_consts, only: PI
+    use math_utilities, only: unit_vector
+    use diagnostics, only: enter_exit,get_diagnostics_level
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALC_SAGHIAN_CELL_WALL" :: CALC_SAGHIAN_CELL_WALL
+    integer, intent(in) :: cell_population
+    integer, intent(in) :: force_field
+    real(dp), intent(in) :: r0,r1,a,b
+
+    integer :: kcell,knbr,nbridx
+    real(dp) :: dx, c, delta, xcross,F,x,Fdir(3),unitFdir(3),rad1,rad2
+
+    integer :: diagnostics_level
+    character(len=60) :: sub_name
+
+    sub_name = 'calc_saghian_cell_wall'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    dx = r1 - r0
+    c = -b*8.0_dp - 4.0_dp*a/dx**2.0_dp
+    delta = dx**2.0_dp + 4.0_dp*a/c
+    xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
+
+    do kcell = 1,num_cells
+       call calc_walldist_tube(kcell)
+       unitFdir =cell_list(kcell)%wall_dir
+       x= cell_list(kcell)%wall_distance/cell_list(kcell)%radius(1)
+       if (x > xcross) then
+         F = 0.0_dp
+       elseif (x < r0) then ! should not happen with adaptive time stepping
+         write(*,*) 'Error: get wall force: x < x0: ',x,cell_list(kcell)%wall_distance, &
+         cell_list(kcell)%wall_dir,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
+         F = 0.0_dp
+         pause
+       else
+         F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
+       endif
+
+       cell_field(kcell, force_field, :) =  F*unitFdir
+
+     if(diagnostics_level.gt.1)then
+       write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
+     endif
+    enddo
+
+    call enter_exit(sub_name,2)
+end subroutine calc_saghian_cell_wall
+!
+!###################################################################################
+!
+subroutine calc_walldist_tube(kcell)
+    use arrays, only: dp,cell_list,plug_params
+    use math_utilities, only: unit_vector,vector_length
+    use diagnostics, only: enter_exit,get_diagnostics_level
+
+    integer, intent(in) :: kcell
+
+    real(dp) :: cell_radius, tube_radius, wall_dir(3)
+
+    integer :: diagnostics_level
+    character(len=60) :: sub_name
+
+    sub_name = 'calc_walldist_tube'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+    wall_dir(1) = cell_list(kcell)%centre(1,1)
+    wall_dir(2) = cell_list(kcell)%centre(2,1)
+    wall_dir(3) = 0.0_dp
+    cell_radius = vector_length(wall_dir)
+    write(*,*) cell_radius, cell_list(kcell)%centre(:,1)
+    tube_radius = plug_params%tube_radius
+    write(*,*) tube_radius
+
+    cell_list(kcell)%wall_distance = tube_radius - cell_radius
+
+
+    wall_dir = unit_vector(wall_dir)
+
+    cell_list(kcell)%wall_dir = wall_dir
+
+    call enter_exit(sub_name,2)
+end subroutine calc_walldist_tube
+
 !
 !###################################################################################
 !
