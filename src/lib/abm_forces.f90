@@ -148,16 +148,11 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
        elseif (x < r0) then ! should not happen with adaptive time stepping
          write(*,*) 'Error: get cell force: x < x0: ',x,r0,cell_list(kcell)%nbrlist(knbr)%distance,rad1,rad2,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
          F = 0.0_dp
-         pause
        else
          F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
        endif
 
        cell_field(kcell, force_field, :) = cell_field(kcell, force_field, :) + F*unitFdir
-
-       if(kcell.eq.483)then
-       write(*,*) 'cc',kcell, knbr, F, unitFdir,x,r0,cell_field(kcell, force_field, :)
-       endif
 
      enddo
      if(diagnostics_level.gt.1)then
@@ -197,8 +192,7 @@ subroutine calc_saghian_cell_wall(cell_population,force_field,r0,r1,a,b)
     xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
 
     do kcell = 1,num_cells
-        cell_field(kcell, force_field, :) = 0.0_dp
-!       call calc_walldist_tube(kcell) should be done in calculation of neighbou
+       cell_field(kcell, force_field, :) = 0.0_dp
        unitFdir = -1.0* cell_list(kcell)%wall_dir
        x= cell_list(kcell)%wall_distance/cell_list(kcell)%radius(1)
        if (x > xcross) then
@@ -207,11 +201,9 @@ subroutine calc_saghian_cell_wall(cell_population,force_field,r0,r1,a,b)
          write(*,*) 'Error: get wall force: x < x0: ',x,cell_list(kcell)%wall_distance, &
          cell_list(kcell)%wall_dir,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
          F = 0.0_dp
-         pause
        else
          F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
        endif
-       !write(*,*) 'wall force', kcell, F, unitFdir,  cell_list(kcell)%centre(:,1)
 
 
        cell_field(kcell, force_field, :) =  F*unitFdir

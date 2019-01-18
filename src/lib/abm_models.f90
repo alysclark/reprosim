@@ -11,6 +11,7 @@ module abm_models
   private
   public initialise_abm
   public move_cells_force
+  public check_cell_tube
   public get_current_t
   public get_current_dt
 contains
@@ -526,8 +527,10 @@ subroutine setup_nbrlists
         endif
 
     enddo
-    write(*,*) 'End nbrs', dmin,dmin_wall, dmin_wall - 20.0_dp*abm_control%delta_min, 0.5_dp*(dmin-40.0_dp*abm_control%delta_min),&
-     abm_control%delta_min
+    if(diagnostics_level.gt.1)then
+      write(*,*) 'End nbrs', dmin,dmin_wall, dmin_wall - 20.0_dp*abm_control%delta_min,&
+       0.5_dp*(dmin-40.0_dp*abm_control%delta_min), abm_control%delta_min
+     endif
 
 
     if(abm_control%Wall)then
@@ -536,8 +539,6 @@ subroutine setup_nbrlists
       abm_control%delta_max = 0.5_dp*(dmin-abm_control%delta_min)
     endif
 
-    write(*,*) 'End nbrs delta_max', abm_control%delta_max
-    !max(0.5_dp*(dmin-abm_control%delta_min), 2.0_dp) !This means cells can never'hit each other' and ensures sep
 
     call enter_exit(sub_name,2)
 end subroutine setup_nbrlists
@@ -579,9 +580,6 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     do kcell = 1, num_cells
       do kforce = 1,num_cell_f
         force(kcell,:) = force(kcell,:) + cell_field(kcell,kforce,:)
-        if(kcell.eq.483)then
-         write(*,*) kcell, kforce, force(kcell,:)
-        endif
         if (diagnostics_level.gt.1)then
           write(*,*) kforce, vector_length(cell_field(kcell,kforce,:))
         endif
@@ -594,8 +592,7 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
       endif
     enddo
 
-    if(diagnostics_level>1)write(*,*) 'Max force', max_force
-    write(*,*) 'Max force', max_force, max_cell
+    if(diagnostics_level>1)write(*,*) 'Max force', max_force, max_cell
     if (max_force > 0) then
       max_dx = dt_move*max_force/kdrag
       do while (max_dx > abm_control%delta_max)
@@ -603,8 +600,9 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
         max_dx = dt_move*max_force/kdrag
       enddo
     endif
-     write(*,*) 'dx max', max_dx, dt_move, abm_control%delta_max
-     !pause
+
+    if(diagnostics_level>1)write(*,*)'dx max', max_dx, dt_move, abm_control%delta_max
+
     if(dt_move < abm_control%delta_t_min)then
       dt_move = abm_control%delta_t_min
     endif
@@ -624,15 +622,8 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
           !cp%centre(:,2) = cp%centre(:,2) + dx2
           endif
         endif
-!        if (cp%centre(3,1)>tube_length) then
-!         !   call Tcell_death(kcell)
-!            cp%state=GONE_BACK
-!        elseif (cp%centre(3,1)<0) then
-!            cp%state=GONE_THROUGH
-!        endif
-!    enddo
     enddo
-!!omp end parallel do
+
     deallocate(force)
 
     abm_control%current_time = abm_control%current_time + dt_move
@@ -650,6 +641,41 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
 
     call enter_exit(sub_name,2)
 end subroutine move_cells_force
+
+!
+!###################################################################################
+!
+subroutine check_cell_tube(cell_population)
+    use arrays, only: dp,num_cells,cell_list,cell_stat,plug_params
+    use math_utilities, only: vector_length
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use abm_forces, only: calc_walldist_tube
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CHECK_CELL_TUBE" :: CALC_CHECK_CELL_TUBE
+
+    integer, intent(in) :: cell_population
+
+    integer :: kcell
+    integer :: diagnostics_level
+    character(len=60) :: sub_name
+
+    sub_name = 'check_cell_tube'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+
+    do kcell = 1, num_cells
+        if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
+        if (cell_list(kcell)%state == cell_stat%ALIVE)then
+          if (cell_list(kcell)%centre(3,1).gt.plug_params%tube_length) then
+              cell_list(kcell)%state=cell_stat%GONE_BACK
+          elseif (cell_list(kcell)%centre(3,1).lt.0.0_dp) then
+              cell_list(kcell)%state=cell_stat%GONE_THROUGH
+          endif
+        endif
+    enddo
+    call enter_exit(sub_name,2)
+end subroutine check_cell_tube
+
 
 function get_current_t() result(time_params)
     use arrays, only: dp,abm_control

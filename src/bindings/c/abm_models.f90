@@ -52,6 +52,24 @@ end subroutine move_cells_force_c
 
 !###################################################################################
 
+subroutine check_cell_tube_c(cell_population) bind(C, name = "check_cell_tube_c")
+
+use arrays, only:dp
+use abm_models, only: check_cell_tube
+
+integer, intent(in) :: cell_population
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_check_cell_tube_c(cell_population)
+#else
+call check_cell_tube(cell_population)
+#endif
+
+end subroutine check_cell_tube_c
+
+!###################################################################################
+
+
 function get_current_t_c() result(time_params) bind(C, name="get_current_t_c")
 use arrays, only:dp
 use abm_models, only: get_current_t

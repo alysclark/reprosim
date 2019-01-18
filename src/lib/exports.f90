@@ -8,7 +8,7 @@ module exports
   public export_1d_elem_geometry,export_node_geometry,export_node_field,&
        export_terminal_perfusion,&
        export_1d_elem_field
-  public export_cell_location,export_cell_exnode
+  public export_cell_location,export_cell_exnode,export_cell_plug
 
 contains
 !!!################################################################
@@ -305,6 +305,7 @@ subroutine export_cell_location(filename,cell_population)
 
     open(10, file=filename, status='replace')
     do kcell = 1,num_cells
+      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
         write(10,'(I12,X,3(F12.6,1X))') kcell,cell_list(kcell)%centre(:,1)
       endif
@@ -312,6 +313,45 @@ subroutine export_cell_location(filename,cell_population)
     close(10)
 end subroutine export_cell_location
 
+
+!!! ###########################################################
+
+subroutine export_cell_plug(filename,cell_population,cur_time)
+    use arrays,only: dp,num_cells,cell_list,cell_stat
+    use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_CELL_PLUG" :: EXPORT_CELL_PLUG
+
+!!! Parameters
+    character(len=MAX_FILENAME_LEN),intent(in) :: filename
+    integer, intent(in) :: cell_population
+    real(dp), intent(in) :: cur_time
+
+    integer :: kcell, count_cell_exit,cell_count_close_wall,cell_count_far_wall
+
+    if(cur_time.eq.0.0_dp) then
+      open(20, file=filename, status='replace')
+    else
+      open(20, file=filename, access = 'append', status='old')
+    endif
+
+    count_cell_exit = 0
+    cell_count_close_wall = 0
+    do kcell = 1,num_cells
+      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH)then
+        count_cell_exit = count_cell_exit + 1
+      elseif(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+        if(cell_list(kcell)%wall_distance.lt.2.0_dp*cell_list(kcell)%radius(1))then
+          cell_count_close_wall = cell_count_close_wall + 1
+        else
+          cell_count_far_wall = cell_count_far_wall + 1
+        endif
+      endif
+    enddo
+
+    write(20,'(F12.6, X 3(I12,X))') cur_time,count_cell_exit,cell_count_close_wall, cell_count_far_wall
+    close(20)
+end subroutine export_cell_plug
 
 !!! ###########################################################
 
@@ -329,6 +369,7 @@ subroutine export_cell_exnode(filename,cell_population)
 
     open(10, file=filename, status='replace')
     do kcell = 1,num_cells
+      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
        !write(10,'(2X,2(1X,F12.6))') (node_field(nj_field,np))
       endif
