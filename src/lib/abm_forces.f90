@@ -13,6 +13,7 @@ module abm_forces
   public calc_saghian_chemo_forces
   public calc_saghian_cell_cell
   public calc_saghian_cell_wall
+  public calc_walldist_tube
 contains
 !
 !###################################################################################
@@ -37,6 +38,7 @@ subroutine calc_random_forces(cell_population, force_field, force_magnitude)
     call get_diagnostics_level(diagnostics_level)
     
     do kcell = 1,num_cells
+      cell_field(kcell, force_field, :) = 0.0_dp
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
         if(diagnostics_level.gt.1)then
           write(*,*) kcell
@@ -78,6 +80,7 @@ subroutine calc_saghian_chemo_forces(cell_population,force_field,fradial,cradial
     
     
     do kcell = 1,num_cells
+      cell_field(kcell, force_field, :) = 0.0_dp
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
         if(diagnostics_level.gt.1)then
           write(*,*) kcell
@@ -132,6 +135,7 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
     xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
 
     do kcell = 1,num_cells
+     cell_field(kcell, force_field, :) = 0.0_dp
      do knbr = 1,cell_list(kcell)%nbrs
        nbridx = cell_list(kcell)%nbrlist(knbr)%indx
        Fdir =cell_list(nbridx)%centre(:,1)-cell_list(kcell)%centre(:,1)
@@ -150,6 +154,10 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
        endif
 
        cell_field(kcell, force_field, :) = cell_field(kcell, force_field, :) + F*unitFdir
+
+       if(kcell.eq.483)then
+       write(*,*) 'cc',kcell, knbr, F, unitFdir,x,r0,cell_field(kcell, force_field, :)
+       endif
 
      enddo
      if(diagnostics_level.gt.1)then
@@ -189,8 +197,9 @@ subroutine calc_saghian_cell_wall(cell_population,force_field,r0,r1,a,b)
     xcross = (r0+r1)/2.0_dp + 0.5_dp*sqrt(delta)
 
     do kcell = 1,num_cells
-       call calc_walldist_tube(kcell)
-       unitFdir =cell_list(kcell)%wall_dir
+        cell_field(kcell, force_field, :) = 0.0_dp
+!       call calc_walldist_tube(kcell) should be done in calculation of neighbou
+       unitFdir = -1.0* cell_list(kcell)%wall_dir
        x= cell_list(kcell)%wall_distance/cell_list(kcell)%radius(1)
        if (x > xcross) then
          F = 0.0_dp
@@ -202,8 +211,11 @@ subroutine calc_saghian_cell_wall(cell_population,force_field,r0,r1,a,b)
        else
          F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
        endif
+       !write(*,*) 'wall force', kcell, F, unitFdir,  cell_list(kcell)%centre(:,1)
+
 
        cell_field(kcell, force_field, :) =  F*unitFdir
+
 
      if(diagnostics_level.gt.1)then
        write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
@@ -234,9 +246,7 @@ subroutine calc_walldist_tube(kcell)
     wall_dir(2) = cell_list(kcell)%centre(2,1)
     wall_dir(3) = 0.0_dp
     cell_radius = vector_length(wall_dir)
-    write(*,*) cell_radius, cell_list(kcell)%centre(:,1)
     tube_radius = plug_params%tube_radius
-    write(*,*) tube_radius
 
     cell_list(kcell)%wall_distance = tube_radius - cell_radius
 

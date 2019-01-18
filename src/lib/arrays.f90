@@ -69,7 +69,7 @@ module arrays
   type abm_control_params
     real(dp) :: delta_t_min         !minimum time step
     real(dp) :: delta_t             !default time strp
-    real(dp) :: delta_min = 6.0_dp    !minimum allowed separation between cells (um)
+    real(dp) :: delta_min = 0.31_dp    !minimum allowed separation between cells (fraction of cell radius)
     real(dp) :: d_nbr_limit = 2.0_dp*2.0_dp*20.0_dp
     real(dp) :: delta_max = 0.10_dp    !maximum movement in a single timestep
     real(dp) :: current_time

@@ -430,7 +430,7 @@ subroutine setup_nbrlists
     use other_consts
     use diagnostics, only: enter_exit,get_diagnostics_level
     type(cell_type), pointer :: cp1, cp2
-    real(dp) :: R1, c1(3), R2, c2(3), v(3), d2, d, Rsum, dfactor, dmin,nearest_dist
+    real(dp) :: R1, c1(3), R2, c2(3), v(3), d2, d, Rsum, dfactor, dmin,nearest_dist,dmin_wall
     integer :: kcell, k2, k, isphere1, nspheres1, isphere2, nspheres2, nbrs
     type(neighbour_type) :: nbrlist(100)
     logical :: near, incontact, contact(2,2)
@@ -442,7 +442,8 @@ subroutine setup_nbrlists
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
-    dmin = 1.0e10
+    dmin = 1.0e10_dp
+    dmin_wall = 1.0e10_dp
     do kcell = 1,num_cells
         cp1 => cell_list(kcell)
         if (cp1%state /= cell_stat%ALIVE) cycle
@@ -515,18 +516,28 @@ subroutine setup_nbrlists
         cp1%nbrs = nbrs
         cp1%nbrlist(1:nbrs) = nbrlist(1:nbrs)
 
-
-        if(abm_control%Wall)then
-          if(cp1%wall_distance.lt.nearest_dist)then
-            nearest_dist = cp1%wall_distance
-          endif
-        endif
         cp1%nearest_dist = nearest_dist
         !write(*,*) kcell, cp1%nbrs,cp1%nearest_dist
 
+         if(abm_control%Wall)then
+          if(cp1%wall_distance.lt.dmin_wall)then
+            dmin_wall = cp1%wall_distance
+          endif
+        endif
+
     enddo
-    write(*,*) 'End nbrs', dmin
-    abm_control%delta_max = max(0.5_dp*(dmin-abm_control%delta_min), 2.0_dp) !This means cells can never'hit each other' and ensures sep
+    write(*,*) 'End nbrs', dmin,dmin_wall, dmin_wall - 20.0_dp*abm_control%delta_min, 0.5_dp*(dmin-40.0_dp*abm_control%delta_min),&
+     abm_control%delta_min
+
+
+    if(abm_control%Wall)then
+      abm_control%delta_max = min(0.5_dp*(dmin-40.0_dp*abm_control%delta_min),dmin_wall - 20.0_dp*abm_control%delta_min)
+    else
+      abm_control%delta_max = 0.5_dp*(dmin-abm_control%delta_min)
+    endif
+
+    write(*,*) 'End nbrs delta_max', abm_control%delta_max
+    !max(0.5_dp*(dmin-abm_control%delta_min), 2.0_dp) !This means cells can never'hit each other' and ensures sep
 
     call enter_exit(sub_name,2)
 end subroutine setup_nbrlists
@@ -539,6 +550,7 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field,abm_control,num_cell_f
     use math_utilities, only: vector_length
     use diagnostics, only: enter_exit,get_diagnostics_level
+    use abm_forces, only: calc_walldist_tube
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_MOVE_CELLS_FORCE" :: CALC_MOVE_CELLS_FORCE
 
     integer, intent(in) :: cell_population
@@ -547,7 +559,7 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
 
     integer :: kcell, kforce
     real(dp) :: max_force,force_mag, dt_move,max_dx
-    integer :: k1, kpar, nd, nr, nc(0:8), kfrom(0:8), kto(0:8), tMnodes
+    integer :: k1, kpar, nd, nr, nc(0:8), kfrom(0:8), kto(0:8), tMnodes,max_cell
     real(dp), allocatable :: force(:,:)
     real(dp) :: fmax, dx1(3), dx2(3)
 
@@ -567,17 +579,23 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     do kcell = 1, num_cells
       do kforce = 1,num_cell_f
         force(kcell,:) = force(kcell,:) + cell_field(kcell,kforce,:)
-        write(*,*) kforce, vector_length(cell_field(kcell,kforce,:))
+        if(kcell.eq.483)then
+         write(*,*) kcell, kforce, force(kcell,:)
+        endif
+        if (diagnostics_level.gt.1)then
+          write(*,*) kforce, vector_length(cell_field(kcell,kforce,:))
+        endif
       enddo
       force_mag =vector_length(force(kcell,:))
       !write(*,*) force_mag/kdrag
       if(force_mag > max_force)then
         max_force = force_mag
+        max_cell = kcell
       endif
     enddo
 
     if(diagnostics_level>1)write(*,*) 'Max force', max_force
-    write(*,*) 'Max force', max_force
+    write(*,*) 'Max force', max_force, max_cell
     if (max_force > 0) then
       max_dx = dt_move*max_force/kdrag
       do while (max_dx > abm_control%delta_max)
@@ -621,6 +639,12 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     abm_control%used_delta_t = dt_move
     if(diagnostics_level.gt.1)then
         write(*,*) 'current_time', abm_control%current_time
+    endif
+
+    if(abm_control%Wall)then !need to recalculate wall distances
+      do kcell = 1,num_cells
+       call calc_walldist_tube(kcell)
+      enddo
     endif
     call setup_nbrlists
 
