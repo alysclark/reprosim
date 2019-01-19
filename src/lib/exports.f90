@@ -337,6 +337,7 @@ subroutine export_cell_plug(filename,cell_population,cur_time)
 
     count_cell_exit = 0
     cell_count_close_wall = 0
+    cell_count_far_wall = 0
     do kcell = 1,num_cells
       if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH)then
         count_cell_exit = count_cell_exit + 1

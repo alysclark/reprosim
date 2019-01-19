@@ -88,9 +88,9 @@ subroutine calc_saghian_chemo_forces(cell_population,force_field,fradial,cradial
         endif
         ccentre = cell_list(kcell)%centre(:,1)
         d = ccentre(3)/(plug_params%tube_length)
-        r = sqrt(dot_product(ccentre,ccentre))/(plug_params%tube_length)
+        r = sqrt(dot_product(ccentre(1:2),ccentre(1:2)))/plug_params%tube_radius
         theta=ATAN2(ccentre(2),ccentre(1))
-        if (theta<0) then
+        if (theta.lt.0.0_dp) then
             theta=theta+2*PI
         endif
     
@@ -237,13 +237,15 @@ subroutine calc_walldist_tube(kcell)
     wall_dir(1) = cell_list(kcell)%centre(1,1)
     wall_dir(2) = cell_list(kcell)%centre(2,1)
     wall_dir(3) = 0.0_dp
+
     cell_radius = vector_length(wall_dir)
     tube_radius = plug_params%tube_radius
 
     cell_list(kcell)%wall_distance = tube_radius - cell_radius
 
-
-    wall_dir = unit_vector(wall_dir)
+    if(cell_radius.gt.0.0_dp)then
+      wall_dir = unit_vector(wall_dir)
+    endif
 
     cell_list(kcell)%wall_dir = wall_dir
 

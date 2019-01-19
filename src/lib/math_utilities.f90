@@ -6,6 +6,7 @@ module math_utilities
   private
   public ax_cr,diagonal_pointer_cr,ilu_cr,lus_cr,mult_givens,rearrange_cr
   public unit_vector,vector_length
+  public mean,variance
 
 contains
 !
@@ -308,6 +309,41 @@ subroutine diagonal_pointer_cr ( n, ia, ja, ua )
     vector_length = dsqrt(vector_length)
 
   end function vector_length
+
+    !!!##################################################
+
+  function mean(vec_len,vector)
+
+    !###  Calculates the mean value of entries in a vector
+
+    integer, intent(in) :: vec_len
+    real(dp),intent(in) :: vector(vec_len)
+    real(dp) :: mean
+
+    mean = sum(vector)/vec_len
+
+  end function mean
+
+      !!!##################################################
+
+  function variance(vec_len,vector,mean_value)
+
+    !###  Calculates the mean value of entries in a vector
+
+    integer, intent(in) :: vec_len
+    real(dp),intent(in) :: vector(vec_len)
+    real(dp), intent(in) :: mean_value
+
+    real(dp) :: variance
+    integer :: i
+
+    variance = 0.0_dp
+    do i = 1,vec_len
+       variance = variance + (vector(i) - mean_value)**2.0_dp
+    enddo
+    variance = variance / (vec_len - 1)
+
+  end function variance
 
 
 end module math_utilities
