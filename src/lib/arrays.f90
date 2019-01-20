@@ -45,6 +45,8 @@ module arrays
     real(dp) :: dVdt         ! Change in cell volume in time
     real(dp) :: radius(2)    ! sphere radii (um) - could be two of them if in Mphase
     real(dp) :: centre(3,2)  ! sphere centre positions
+    real(dp) :: centre_t_n(3,2)  ! sphere centre positions at last exported time
+    real(dp) :: centre_t_0(3,2)  ! sphere centre positions at seeding
     real(dp) :: d            ! centre separation distance (um)
     real(dp) :: birthtime    ! time of birth
     real(dp) :: t_start_mitosis !Time mitosis started
@@ -53,7 +55,6 @@ module arrays
     real(dp) :: d_divide     ! centre separation distance at the end of mitosis
     integer :: step
     integer :: tag
-  !NULLIFY() instead.
     integer(2) :: ctype
     integer(2) :: lastdir
     integer :: dtotal(3)

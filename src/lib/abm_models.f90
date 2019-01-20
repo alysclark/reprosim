@@ -10,6 +10,7 @@ module abm_models
   !Interfaces
   private
   public initialise_abm
+  public finalise_abm
   public move_cells_force
   public check_cell_tube
   public get_current_t
@@ -18,7 +19,7 @@ contains
 !
 !###################################################################################
 !
-subroutine initialise_abm(model_type,total_cells,num_forces,time_step,min_time_step)
+subroutine initialise_abm(model_type,total_cells,num_forces,time_step,min_time_step,input_seed)
     use arrays, only: dp, cell_type,cell_list, num_cells, num_cell_f,abm_control
     use diagnostics, only: enter_exit,get_diagnostics_level
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_ABM" :: EVALUATE_ABM
@@ -28,9 +29,10 @@ subroutine initialise_abm(model_type,total_cells,num_forces,time_step,min_time_s
     integer, intent(in) :: num_forces
     real(dp), intent(in) :: time_step
     real(dp), intent(in) :: min_time_step
+    integer, intent(in) :: input_seed
 
     !local variables
-    integer :: nseed,i,input_seed
+    integer :: nseed,i
     integer, allocatable :: seed(:)
     character(len=60) :: sub_name
     sub_name = 'initialise_abm'
@@ -46,8 +48,6 @@ subroutine initialise_abm(model_type,total_cells,num_forces,time_step,min_time_s
     abm_control%delta_t_min = min_time_step
     !Intitialise time
     abm_control%current_time = 0.0_dp
-
-    input_seed = 1 !This needs to be an input later
 
     !Initialise cell location
     if(model_type.eq.'trophoblast')then
@@ -71,6 +71,27 @@ subroutine initialise_abm(model_type,total_cells,num_forces,time_step,min_time_s
     !call deallocate_abm_memory
     call enter_exit(sub_name,2)
 end subroutine initialise_abm
+
+!
+!###################################################################################
+!
+subroutine finalise_abm(model_type)
+    use arrays, only: dp
+    use diagnostics, only: enter_exit,get_diagnostics_level
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_ABM" :: EVALUATE_ABM
+
+    character(len=60), intent(in) :: model_type
+
+    !local variables
+
+    character(len=60) :: sub_name
+    sub_name = 'finalise_abm'
+    call enter_exit(sub_name,1)
+
+
+    call deallocate_abm_memory
+    call enter_exit(sub_name,2)
+end subroutine finalise_abm
 !
 !###################################################################################
 !
@@ -132,6 +153,8 @@ subroutine create_cell(kcell,rsite,ctype,gen,tag,region,dividing)
     cp%state = cell_stat%ALIVE
     cp%nspheres = 1
     cp%centre(:,1) = rsite
+    cp%centre_t_0(:,1) = rsite
+    cp%centre_t_n(:,1) = rsite
     cp%radius = plug_params%Raverage
     cp%ctype = ctype
     cp%tag = tag

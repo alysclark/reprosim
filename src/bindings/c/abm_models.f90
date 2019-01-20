@@ -7,7 +7,7 @@ contains
 !!!###################################################################################
 
 subroutine initialise_abm_c(model_type,model_type_len,total_cells,num_forces, &
-    time_step,min_time_step) bind(C, name="initialise_abm_c")
+    time_step,min_time_step,input_seed) bind(C, name="initialise_abm_c")
 
 use iso_c_binding, only: c_ptr
 use utils_c, only: strncpy
@@ -19,17 +19,43 @@ implicit none
 type(c_ptr), value, intent(in) :: model_type
 integer,intent(in) :: model_type_len, total_cells,num_forces
 real(dp), intent(in) :: time_step, min_time_step
+integer, intent(in) :: input_seed
 character(len=MAX_STRING_LEN) :: model_type_f
 
 call strncpy(model_type_f, model_type, model_type_len)
 
 #if defined _WIN32 && defined __INTEL_COMPILER
-call so_initialise_abm(model_type_f,total_cells,num_forces,time_step,min_time_step)
+call so_initialise_abm(model_type_f,total_cells,num_forces,time_step,min_time_step,input_seed)
 #else
-call initialise_abm(model_type_f,total_cells,num_forces,time_step,min_time_step)
+call initialise_abm(model_type_f,total_cells,num_forces,time_step,min_time_step,input_seed)
 #endif
 
 end subroutine initialise_abm_c
+
+!!!###################################################################################
+
+subroutine finalise_abm_c(model_type,model_type_len) bind(C, name="finalise_abm_c")
+
+use iso_c_binding, only: c_ptr
+use utils_c, only: strncpy
+use other_consts, only: MAX_STRING_LEN
+use arrays, only: dp
+use abm_models, only: finalise_abm
+implicit none
+
+type(c_ptr), value, intent(in) :: model_type
+integer,intent(in) :: model_type_len
+character(len=MAX_STRING_LEN) :: model_type_f
+
+call strncpy(model_type_f, model_type, model_type_len)
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_finalise_abm(model_type_f)
+#else
+call finalise_abm(model_type_f)
+#endif
+
+end subroutine finalise_abm_c
 
 !###################################################################################
 
