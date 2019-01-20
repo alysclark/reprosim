@@ -13,5 +13,7 @@ SHO_PUBLIC void define_rad_from_geom(const char *ORDER_SYSTEM, double CONTROL_PA
                                      double START_RAD, const char *GROUP_TYPE, const char *GROUP_OPTIONS);
 SHO_PUBLIC void element_connectivity_1d();
 SHO_PUBLIC void evaluate_ordering();
+SHO_PUBLIC void read_icem_msh(const char *filename);
+SHO_PUBLIC void read_k_file(const char *filename);
 
 #endif /* REPROSIM_GEOMETRY_H */

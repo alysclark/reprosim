@@ -5,6 +5,7 @@ module arrays
   implicit none
 
   integer :: num_elems,num_nodes,num_units,maxgen,num_arterial_elems,num_cells,num_cell_f
+  integer :: num_faces,num_inlet_faces,num_outlet_faces,num_wall_faces
 
   integer, parameter :: dp=kind(0.d0) !  for double precision
 
@@ -17,6 +18,13 @@ module arrays
   integer,allocatable :: elem_units_below(:)
   integer,allocatable :: elems_at_node(:,:)
   integer,allocatable :: units(:)
+  integer, allocatable :: internal_faces(:,:)
+  integer, allocatable :: inlet_faces(:,:)
+  integer, allocatable :: outlet_faces(:,:)
+  integer, allocatable :: wall_faces(:,:)
+  integer, allocatable :: elem_3d(:,:)
+  real(dp), allocatable :: node_3d(:,:)
+
 
   real(dp),allocatable :: cell_field(:,:,:) !properties of cells
   real(dp),allocatable :: elem_field(:,:) !properties of elements
@@ -142,7 +150,9 @@ module arrays
   type(plug_model_properties) :: plug_params
 
   private
-  public cell_type, cell_list, set_node_field_value, cell_field, elem_field, num_elems, elem_nodes, node_xyz, nodes, elems, &
+  public cell_type, cell_list, set_node_field_value, cell_field, elem_field,internal_faces,&
+    num_elems, elem_nodes, node_xyz, nodes, elems, num_faces, inlet_faces, num_inlet_faces, &
+    num_outlet_faces,num_wall_faces,outlet_faces,wall_faces,elem_3d,node_3d,&
     num_cells, num_cell_f, num_nodes, units, num_units, unit_field, node_field, dp, elem_cnct, elem_ordrs, elem_direction, &
     elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params
   public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control

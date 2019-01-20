@@ -20,6 +20,8 @@ module geometry
   public define_rad_from_geom
   public element_connectivity_1d
   public evaluate_ordering
+  public read_icem_msh
+  public read_k_file
   public get_final_real
 
 contains
@@ -363,7 +365,7 @@ contains
     ne =units(1) !Get a terminal unit
     nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
     nv =  elem_cnct(1,1,nc) !vein is downstream of the capillary
-    int_radius_in = (elem_field(ne_radius,ne)+elem_field(ne_radius,nv))/2.0_dp ! mm radius of inlet intermediate villous (average of artery and vein)
+    int_radius_in = (elem_field(ne_radius,ne)+elem_field(ne_radius,nv))/2.0_dp ! mm radius of inlet_faces intermediate villous (average of artery and vein)
     int_radius_out=(0.03_dp + 0.03_dp/2.0_dp)/2.0_dp ! mm radius of mature intermediate villous (average of artery and vein)
     int_length=1.5_dp !mm Length of each intermediate villous
     cap_length=3_dp/num_convolutes !mm length of capillary convolutes
@@ -457,7 +459,7 @@ contains
           endif
           exit read_number_of_elements
        endif
-    end do read_number_of_elements
+    enddo read_number_of_elements
 
 !!! allocate memory for element arrays
     if(allocated(elems)) deallocate(elems)
@@ -511,14 +513,14 @@ contains
                    		print *,"elem_nodes(nn,ne)", nn, ne, "= np", np
                    endif
                    sub_string = adjustl(sub_string(iend:i_ss_end)) ! get chars beyond blank, remove leading blanks
-                end do
+                enddo
                 exit read_element_nodes
              endif !index
-          end do read_element_nodes
+          enddo read_element_nodes
           if(ne.ge.num_elems) exit read_an_element
        endif
 
-    end do read_an_element
+    enddo read_an_element
 
     close(10)
 
@@ -586,7 +588,7 @@ contains
           exit read_number_of_nodes !exit the named do loop
        endif
 
-    end do read_number_of_nodes
+    enddo read_number_of_nodes
 
     if(allocated(nodes)) deallocate (nodes)
     allocate (nodes(num_nodes))
@@ -605,7 +607,7 @@ contains
           call get_final_integer(ctemp1,NJT) !return the final integer
           exit read_number_of_coords !exit the named do loop
        endif
-    end do read_number_of_coords
+    enddo read_number_of_coords
 
     !.....check whether versions are prompted (>1)
     read_versions : do !define a do loop name
@@ -616,7 +618,7 @@ contains
           endif
           exit read_versions !exit the named do loop
        endif
-    end do read_versions
+    enddo read_versions
 
 !!! WARNING :: following should be in general code
     ! note that only the first version of coordinate is currently read in
@@ -654,12 +656,12 @@ contains
              if(diagnostics_level.GT.1)then
              	print *, "node_xyz(i,np)",i," ",np,"=", point
              endif
-          end do !i
+          enddo !i
 
        endif !index
                   
        if(np.ge.num_nodes) exit read_a_node
-    end do read_a_node
+    enddo read_a_node
 
     close(10)
     
@@ -685,7 +687,7 @@ contains
    !Local variables
    character(LEN=100) :: group_type, group_options
    integer :: ne_min,ne_max,nindex,ne,n_max_ord,n,ne_start,&
-      inlet_count
+      inlet_faces_count
    real(dp) :: radius
    character(len=60) :: sub_name
    integer :: diagnostics_level
@@ -719,15 +721,15 @@ contains
     	endif
     !Define start element
     if(group_type.ne.'venous')then
-    		if(START_FROM.eq.'inlet')then
-      	inlet_count=0
+    		if(START_FROM.eq.'inlet_faces')then
+      	inlet_faces_count=0
       		do ne=ne_min,ne_max
          		if(elem_cnct(-1,0,ne).eq.0)then
-           			inlet_count=inlet_count+1
+           			inlet_faces_count=inlet_faces_count+1
            			ne_start=ne
          		endif
-         		if(inlet_count.gt.1)then
-            			WRITE(*,*) ' More than one inlet in this group, using last found, ne = ',ne
+         		if(inlet_faces_count.gt.1)then
+            			WRITE(*,*) ' More than one inlet_faces in this group, using last found, ne = ',ne
          		endif
       		enddo
     		else!element number defined
@@ -899,9 +901,9 @@ contains
     implicit none
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_ORDERING" :: EVALUATE_ORDERING
 
-    integer :: INLETS,ne,ne0,ne2,noelem2,np,np2, &
+    integer :: inlet_faces,ne,ne0,ne2,noelem2,np,np2, &
          num_attach,n_children,n_generation, &
-         n_horsfield,OUTLETS,STRAHLER,STRAHLER_ADD,temp1
+         n_horsfield,outlet_faces,STRAHLER,STRAHLER_ADD,temp1
     LOGICAL :: DISCONNECT,DUPLICATE
     character(len=60) :: sub_name
     integer :: diagnostics_level
@@ -965,7 +967,7 @@ contains
        elem_ordrs(3,ne)=STRAHLER+STRAHLER_ADD !Strahler order
     ENDDO !noelem
 
-    !       Check for disconnected nodes and number of inlets and outlets
+    !       Check for disconnected nodes and number of inlet_faces and outlet_faces
     DUPLICATE=.FALSE.
     DO ne=1,num_elems
        np=elem_nodes(1,ne)
@@ -976,16 +978,16 @@ contains
     ENDDO
 
     DISCONNECT=.FALSE.
-    INLETS=0
-    OUTLETS=0
+    inlet_faces=0
+    outlet_faces=0
     DO np=1,num_nodes
        num_attach=elems_at_node(np,0)
        IF(num_attach.EQ.0)THEN
           DISCONNECT=.TRUE.
        ELSEIF(num_attach.EQ.1)THEN
           ne=elems_at_node(np,1)
-          IF(elem_cnct(1,0,ne).EQ.0) OUTLETS=OUTLETS+1
-         IF(elem_cnct(-1,0,ne).EQ.0) INLETS=INLETS+1
+          IF(elem_cnct(1,0,ne).EQ.0) outlet_faces=outlet_faces+1
+         IF(elem_cnct(-1,0,ne).EQ.0) inlet_faces=inlet_faces+1
        ELSEIF(num_attach.GT.3)THEN
           WRITE(*,*) ' Node ',np,' attached to',num_attach,' elements'
        ENDIF
@@ -1251,5 +1253,361 @@ contains
 !
 !###########################################################################################
 !
+
+!------------------------------------------------
+subroutine read_icem_msh(filename)
+    use arrays,only: dp,nodes,node_xyz,num_nodes,internal_faces,num_faces,&
+      inlet_faces,num_inlet_faces,num_outlet_faces,num_wall_faces,&
+      outlet_faces,wall_faces
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use indices
+    use other_consts, only: MAX_FILENAME_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_READ_ICEM_MSH" :: READ_ICEM_MSH
+
+    character(len=MAX_FILENAME_LEN), intent(in) :: filename !Input nodefile
+    !     Local Variables
+    character (100) :: cur_line, no_data
+    character*4:: hexaval1,hexaval2,hexaval3,hexaval4,hexaval5,hexaval6
+    integer, parameter :: line_buf_len= 1024*4
+    character(LEN=line_buf_len) :: InS
+    integer :: input, size1, status1, startunit
+    integer :: narray(32), decimaln
+    integer :: input_stat, ii, results, indx,Startstate, lineNum
+    real(dp) :: x, y, z
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'read_icem_msh'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    lineNum=0
+    input=1
+    if(diagnostics_level.gt.1)write(*,*) 'Opening file : ', filename
+
+    open ( unit = input, file = filename, status = 'old', iostat = input_stat )
+    if ( input_stat .ne. 0 ) then
+        write ( *, '(a)' ) ''
+        write ( *, '(a)' ) 'GMSH FILE READ  - Fatal error!'
+        write ( *, '(a)' ) '  Could not open input file:' &
+         // trim (filename)
+        stop 1
+    end if
+
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+
+    do while ( size1<6 .OR. cur_line(size1-1:size1).NE.')(' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    enddo
+
+    !*******Start reading the vertices(x,y,z)*******************************
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    num_nodes=0 !was I
+    do while ( size1>6 .OR. cur_line(size1-1:size1).NE.'))' )
+        num_nodes=num_nodes+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    enddo
+
+    rewind(input)
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating vertices (node_xyz) : ', num_nodes
+    allocate(node_xyz(num_nodes,3)) !was vertices in original code
+
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+    enddo
+    do ii=1,num_nodes
+        read(input, *) node_xyz(ii,:)
+        lineNum=lineNum+1
+        if(diagnostics_level.gt.1)write(*,*) 'new_node : ',ii, node_xyz(ii,:)
+    enddo
+    !******* END reading the vertices(x,y,z)***********************************
+
+
+    do while ( size1<6 .OR. cur_line(size1-1:size1).NE.')(' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    enddo
+    !*******Read internal faces(nod1,node2,node3,node4,RightElement,Leftelement)********
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    num_faces=0
+    do while ( size1>6 .OR. cur_line(size1:size1).NE.')' )
+        num_faces=num_faces+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    enddo
+    rewind(input)
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating internal_faces : ', num_faces
+    allocate(internal_faces(num_faces,6))
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+    enddo
+    do ii=1,num_faces
+        read(input, *) hexaval1,hexaval2,hexaval3,hexaval4,hexaval5,hexaval6
+        read(hexaval1, '(z4)') internal_faces(ii,1)
+        read(hexaval2, '(z4)') internal_faces(ii,2)
+        read(hexaval3, '(z4)') internal_faces(ii,3)
+        read(hexaval4, '(z4)') internal_faces(ii,4)
+        read(hexaval5, '(z4)') internal_faces(ii,5)
+        read(hexaval6, '(z4)') internal_faces(ii,6)
+        lineNum=lineNum+1
+        if(diagnostics_level.gt.1)write(*,*) 'new face : ',ii, internal_faces(ii,:)
+    enddo
+    !******* End reading internal faces *************************************************
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+
+    do while ( size1<6 .OR. cur_line(size1-1:size1).NE.')(' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    enddo
+
+    !*******Read inlet_faces faces(nod1,node2,node3,node4,RightElement,Leftelement)********
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    num_inlet_faces=0
+    do while ( size1>6 .OR. cur_line(size1:size1).NE.')' )
+        num_inlet_faces=num_inlet_faces+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    enddo
+    rewind(input)
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating inlet_faces : ', num_inlet_faces
+    allocate(inlet_faces(num_inlet_faces,6))
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+    enddo
+    do ii=1,num_inlet_faces
+        read(input, *) hexaval1,hexaval2,hexaval3,hexaval4,hexaval5,hexaval6
+        read(hexaval1, '(z4)') inlet_faces(ii,1)
+        read(hexaval2, '(z4)') inlet_faces(ii,2)
+        read(hexaval3, '(z4)') inlet_faces(ii,3)
+        read(hexaval4, '(z4)') inlet_faces(ii,4)
+        read(hexaval5, '(z4)') inlet_faces(ii,5)
+        read(hexaval6, '(z4)') inlet_faces(ii,6)
+        lineNum=lineNum+1
+        if(diagnostics_level.gt.1)write(*,*) 'inlet face : ',ii, inlet_faces(ii,:)
+
+    enddo
+
+
+    !******* End reading inlet_faces faces *************************************************
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    do while ( size1<6 .OR. cur_line(size1-1:size1).NE.')(' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    enddo
+    !*******Read outlet_faces faces(nod1,node2,node3,node4,RightElement,Leftelement)********
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    num_outlet_faces=0
+    do while ( size1>6 .OR. cur_line(size1:size1).NE.')' )
+        num_outlet_faces=num_outlet_faces+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    enddo
+    rewind(input)
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating outlet_faces : ', num_outlet_faces
+
+    allocate(outlet_faces(num_outlet_faces,6))
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+    enddo
+    do ii=1,num_outlet_faces
+        read(input, *) hexaval1,hexaval2,hexaval3,hexaval4,hexaval5,hexaval6
+        read(hexaval1, '(z4)') outlet_faces(ii,1)
+        read(hexaval2, '(z4)') outlet_faces(ii,2)
+        read(hexaval3, '(z4)') outlet_faces(ii,3)
+        read(hexaval4, '(z4)') outlet_faces(ii,4)
+        read(hexaval5, '(z4)') outlet_faces(ii,5)
+        read(hexaval6, '(z4)') outlet_faces(ii,6)
+        if(diagnostics_level.gt.1)write(*,*) 'outlet face : ',ii, outlet_faces(ii,:)
+        lineNum=lineNum+1
+    enddo
+    !******* End reading outlet_faces faces *************************************************
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+
+    do while ( size1<6 .OR. cur_line(size1-1:size1).NE.')(' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    enddo
+    !*******Read wall_faces faces(nod1,node2,node3,node4,RightElement,Leftelement)********
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    num_wall_faces=0
+    do while ( size1>6 .OR. cur_line(size1:size1).NE.')' )
+        num_wall_faces=num_wall_faces+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    enddo
+    rewind(input)
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating wall_faces : ', num_wall_faces
+
+    allocate(wall_faces(num_wall_faces,6))
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+
+    enddo
+    do ii=1,num_wall_faces
+        read(input, *) hexaval1,hexaval2,hexaval3,hexaval4,hexaval5,hexaval6
+        read(hexaval1, '(z4)') wall_faces(ii,1)
+        read(hexaval2, '(z4)') wall_faces(ii,2)
+        read(hexaval3, '(z4)') wall_faces(ii,3)
+        read(hexaval4, '(z4)') wall_faces(ii,4)
+        read(hexaval5, '(z4)') wall_faces(ii,5)
+        read(hexaval6, '(z4)') wall_faces(ii,6)
+        if(diagnostics_level.gt.1)write(*,*) 'wall face : ',ii, wall_faces(ii,:)
+        lineNum=lineNum+1
+    enddo
+    !******* End reading wall_faces faces *************************************************
+
+    close (input)
+    call enter_exit(sub_name,2)
+end subroutine read_icem_msh
+
+subroutine read_k_file(filename)
+    use arrays,only: dp,node_3d,elem_3d,num_nodes,num_elems
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use indices
+    use other_consts, only: MAX_FILENAME_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_READ_K_FILE" :: READ_K_FILE
+
+    character(len=MAX_FILENAME_LEN), intent(in) :: filename !Input nodefile
+
+    character (100) :: cur_line, no_data
+    integer :: input,status1,size1,lineNum,e
+    integer :: input_stat,I, ii, jj
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+    integer, allocatable :: ELEMENT(:,:)
+
+    sub_name = 'read_k_file'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    lineNum=0
+    input=1
+    if(diagnostics_level.gt.1)write(*,*) 'Opening file : ', filename
+    open ( unit = input, file = filename, status = 'old', &
+     iostat = input_stat )
+    if ( input_stat .ne. 0 ) then
+        write ( *, '(a)' ) ''
+        write ( *, '(a)' ) 'KMSH_DATA_READ - Fatal error!'
+        write ( *, '(a)' ) '  Could not open input file:' &
+         // trim ( filename )
+        stop 1
+    end if
+
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    do while ( cur_line(1:size1).NE.'*NODE' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    end do
+
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+
+    !*******Start reading the NODES(#,x,y,z)*******************************
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    I=0
+    do while ( cur_line(size1:size1).NE.'$' )
+        I=I+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        !print *, "!!", cur_line
+    end do
+    rewind(input)
+
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating nodes : ', I !double allocation?
+    allocate(node_3d(I,4))
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+    enddo
+    do ii=1,I
+        read(input, *) node_3d(ii,:)
+        if(diagnostics_level.gt.1)write(*,*) 'new node (double up?) : ',ii, node_3d(ii,:)
+        lineNum=lineNum+1
+    enddo
+    !******* END reading the NODEs(#,x,y,z)***********************************
+
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    lineNum=lineNum+1
+    do while ( cur_line(1:size1).NE.'*ELEMENT_SOLID' )
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+        lineNum=lineNum+1
+    end do
+
+    !*******Start reading the ELEMENT(node1,node2...node8)*******************************
+    read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    I=0
+    do while ( cur_line(1:size1).NE.'*ELEMENT_SHELL' )
+        I=I+1
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) cur_line
+    end do
+
+    rewind(input)
+    num_elems = I/2
+    if(diagnostics_level.gt.1)write(*,*) 'Allocating elems : ', I/2
+    allocate(elem_3d(I/2,8)) !nodes associated with elements
+    do ii=1, lineNum
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+    enddo
+    jj=0
+    do ii=1,I
+    if (mod(ii,2)==0)then
+        jj=jj+1
+        read(input, *)  elem_3d(jj,:)
+        if(diagnostics_level.gt.1)write(*,*) 'elem : ',jj, elem_3d(jj,:)
+        lineNum=lineNum+1
+    else
+        read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
+        lineNum=lineNum+1
+    endif
+    enddo
+    !******* END reading the ELEMENTs(x,y,z)***********************************
+
+    close (input)
+
+    ! Some elements have nodes defined in wrong order - note this is not robust
+
+    allocate(ELEMENT(size(elem_3d,1),8))
+    do e=1,size(ELEMENT,1)
+        if (e<=1800 .OR. e>2700) then
+            ELEMENT(e,1)=elem_3d(e,1)
+            ELEMENT(e,2)=elem_3d(e,5)
+            ELEMENT(e,3)=elem_3d(e,6)
+            ELEMENT(e,4)=elem_3d(e,2)
+            ELEMENT(e,5)=elem_3d(e,4)
+            ELEMENT(e,6)=elem_3d(e,8)
+            ELEMENT(e,7)=elem_3d(e,7)
+            ELEMENT(e,8)=elem_3d(e,3)
+        else
+            ELEMENT(e,1)=elem_3d(e,1)
+            ELEMENT(e,2)=elem_3d(e,2)
+            ELEMENT(e,3)=elem_3d(e,3)
+            ELEMENT(e,4)=elem_3d(e,4)
+            ELEMENT(e,5)=elem_3d(e,5)
+            ELEMENT(e,6)=elem_3d(e,6)
+            ELEMENT(e,7)=elem_3d(e,7)
+            ELEMENT(e,8)=elem_3d(e,8)
+        endif
+    enddo
+    elem_3d=ELEMENT
+    deallocate(ELEMENT)
+
+    call enter_exit(sub_name,2)
+
+end subroutine read_k_file
 end module geometry
 

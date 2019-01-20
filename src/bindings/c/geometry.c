@@ -13,7 +13,8 @@ void define_rad_from_geom_c(const char *order_system, int *order_system_len, dou
                             const char *group_type, int *group_type_len, const char *group_options, int *group_options_len);
 void element_connectivity_1d_c();
 void evaluate_ordering_c();
-
+void read_icem_msh_c(const char *filename, int *filename_len);
+void read_k_file_c(const char *filename, int *filename_len);
 
 void add_matching_mesh()
 {
@@ -62,4 +63,16 @@ void element_connectivity_1d()
 void evaluate_ordering()
 {
   evaluate_ordering_c();
+}
+
+void read_icem_msh(const char *filename)
+{
+  int filename_len = strlen(filename);
+  read_icem_msh_c(filename, &filename_len);
+}
+
+void read_k_file(const char *filename)
+{
+  int filename_len = strlen(filename);
+  read_k_file_c(filename, &filename_len);
 }

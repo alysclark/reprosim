@@ -165,9 +165,55 @@ contains
 
   end subroutine evaluate_ordering_c
 
+!
+!###################################################################################
+!
+  subroutine read_icem_msh_c(filename, filename_len) bind(C, name="read_icem_msh_c")
+
+    use iso_c_binding, only: c_ptr
+    use utils_c, only: strncpy
+    use other_consts, only: MAX_FILENAME_LEN
+    use geometry, only: read_icem_msh
+    implicit none
+
+    integer,intent(in) :: filename_len
+    type(c_ptr), value, intent(in) :: filename
+    character(len=MAX_FILENAME_LEN) :: filename_f
+
+    call strncpy(filename_f, filename, filename_len)
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_read_icem_msh(filename_f)
+#else
+    call read_icem_msh(filename_f)
+#endif
+
+end subroutine read_icem_msh_c
 
 !
 !###################################################################################
+!
+  subroutine read_k_file_c(filename, filename_len) bind(C, name="read_k_file_c")
+
+    use iso_c_binding, only: c_ptr
+    use utils_c, only: strncpy
+    use other_consts, only: MAX_FILENAME_LEN
+    use geometry, only: read_k_file
+    implicit none
+
+    integer,intent(in) :: filename_len
+    type(c_ptr), value, intent(in) :: filename
+    character(len=MAX_FILENAME_LEN) :: filename_f
+
+    call strncpy(filename_f, filename, filename_len)
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_read_k_file(filename_f)
+#else
+    call read_k_file(filename_f)
+#endif
+
+  end subroutine read_k_file_c
 !
 
 end module geometry_c
