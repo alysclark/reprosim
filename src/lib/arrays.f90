@@ -5,7 +5,7 @@ module arrays
   implicit none
 
   integer :: num_elems,num_nodes,num_units,maxgen,num_arterial_elems,num_cells,num_cell_f
-  integer :: num_faces,num_inlet_faces,num_outlet_faces,num_wall_faces
+  integer :: num_faces,num_inlet_faces,num_outlet_faces,num_wall_faces,num_all_faces
 
   integer, parameter :: dp=kind(0.d0) !  for double precision
 
@@ -22,8 +22,11 @@ module arrays
   integer, allocatable :: inlet_faces(:,:)
   integer, allocatable :: outlet_faces(:,:)
   integer, allocatable :: wall_faces(:,:)
+  integer, allocatable :: all_faces(:,:)
   integer, allocatable :: elem_3d(:,:)
   real(dp), allocatable :: node_3d(:,:)
+
+  integer, allocatable :: element2face(:,:)
 
 
   real(dp),allocatable :: cell_field(:,:,:) !properties of cells
@@ -42,6 +45,11 @@ module arrays
     logical*1 :: contact(2,2)
     real(dp) :: distance
   end type
+
+  type Bmatrix_cell
+    real(dp), allocatable :: Inside_B(:,:)
+  end type Bmatrix_cell
+  type(Bmatrix_cell), allocatable :: B_MATRIX(:)
 
   type cell_type
     integer :: ID            ! cell ID
@@ -149,13 +157,39 @@ module arrays
 
   type(plug_model_properties) :: plug_params
 
+  type sample_type
+    integer :: nel, nel_x ,nel_y ,nel_z, nnp
+    real (dp) :: x_min, x_max, y_min, y_max, z_min, z_max
+    real (dp) :: x_width, y_width, z_width, volume
+        !real (REAL_KIND) :: x, y, z
+    integer :: nsd, nen ,ndof, neq
+  end type sample_type
+  type(sample_type) :: sampling_grid
+
+  type node_type
+    integer :: ID
+    real (dp) :: coordinates(3)
+  end type
+  type(node_type), allocatable, target :: sampling_nodes(:)
+
+  type elem_type
+    integer :: ID
+    integer :: nodes(8)
+    real (dp) :: volume_fraction
+    real (dp) :: cylinder_volume
+    integer :: cell_cnt
+  end type
+  type(elem_type), allocatable, target :: sampling_elems(:)
+
+
   private
   public cell_type, cell_list, set_node_field_value, cell_field, elem_field,internal_faces,&
     num_elems, elem_nodes, node_xyz, nodes, elems, num_faces, inlet_faces, num_inlet_faces, &
     num_outlet_faces,num_wall_faces,outlet_faces,wall_faces,elem_3d,node_3d,&
     num_cells, num_cell_f, num_nodes, units, num_units, unit_field, node_field, dp, elem_cnct, elem_ordrs, elem_direction, &
-    elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params
-  public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control
+    elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params,B_MATRIX
+  public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control,all_faces,num_all_faces,element2face
+  public sampling_nodes,sampling_elems,sampling_grid
 
 contains
   subroutine set_node_field_value(row, col, value)  

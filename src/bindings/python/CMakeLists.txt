@@ -21,6 +21,7 @@ set(INTERFACE_SRCS
   ../interface/geometry.i
   ../interface/indices.i
   ../interface/pressure_resistance_flow.i
+  ../interface/mix_fem.i
 
 )
 

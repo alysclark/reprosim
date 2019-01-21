@@ -11,6 +11,7 @@ set(C_FORTRAN_LIB_SRCS
     indices.f90
     pressure_resistance_flow.f90
     utils.f90
+    mix_fem.f90
 )
 set(C_C_LIB_SRCS
     arrays.c
@@ -22,6 +23,7 @@ set(C_C_LIB_SRCS
     indices.c
     pressure_resistance_flow.c
     utils.c
+    mix_fem.c
 )
 
 set(C_LIB_HDRS
@@ -35,7 +37,7 @@ set(C_LIB_HDRS
   indices.h
   pressure_resistance_flow.h
   utils.h
-
+  mix_fem.h
 )
 
 add_library(reprosim_c_fortran STATIC ${C_FORTRAN_LIB_SRCS} $<TARGET_OBJECTS:reprosim_obj>)

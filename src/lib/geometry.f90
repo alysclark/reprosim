@@ -1258,7 +1258,7 @@ contains
 subroutine read_icem_msh(filename)
     use arrays,only: dp,nodes,node_xyz,num_nodes,internal_faces,num_faces,&
       inlet_faces,num_inlet_faces,num_outlet_faces,num_wall_faces,&
-      outlet_faces,wall_faces
+      outlet_faces,wall_faces,all_faces,num_all_faces
     use diagnostics, only: enter_exit,get_diagnostics_level
     use indices
     use other_consts, only: MAX_FILENAME_LEN
@@ -1272,7 +1272,7 @@ subroutine read_icem_msh(filename)
     integer, parameter :: line_buf_len= 1024*4
     character(LEN=line_buf_len) :: InS
     integer :: input, size1, status1, startunit
-    integer :: narray(32), decimaln
+    integer :: narray(32), decimaln,i,j,k,m
     integer :: input_stat, ii, results, indx,Startstate, lineNum
     real(dp) :: x, y, z
     character(len=60) :: sub_name
@@ -1471,6 +1471,27 @@ subroutine read_icem_msh(filename)
     !******* End reading wall_faces faces *************************************************
 
     close (input)
+
+    num_all_faces = num_wall_faces + num_faces + num_inlet_faces + num_outlet_faces
+    allocate(all_faces(num_all_faces,6))
+
+    do i=1,num_faces
+       all_faces(i,:)= internal_faces(i,:)
+    enddo
+    i = num_faces
+    do j=1,num_inlet_faces
+       all_faces(i+j,:)= inlet_faces(j,:)
+    enddo
+    j= num_inlet_faces
+    do k=1,num_outlet_faces
+       all_faces(i+j+k,:)= outlet_faces(k,:)
+    enddo
+    k = num_outlet_faces
+    do m=1,num_wall_faces
+       all_faces(i+j+k+m,:)= wall_faces(m,:)
+    enddo
+
+
     call enter_exit(sub_name,2)
 end subroutine read_icem_msh
 
@@ -1606,6 +1627,7 @@ subroutine read_k_file(filename)
     elem_3d=ELEMENT
     deallocate(ELEMENT)
 
+    write(*,*) filename
     call enter_exit(sub_name,2)
 
 end subroutine read_k_file
