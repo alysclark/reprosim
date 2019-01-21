@@ -129,19 +129,9 @@ module arrays
     real(dp) :: ntgui                        ! interval between GUI outputs (timesteps)
     real(dp) :: idelay                       ! simulation step delay (ms)
     real(dp) :: ichemo_1
-    real(dp) :: grad_amp(2)                  ! chemokine gradient amplitude
-    real(dp) :: coef1                        ! Z chemotaxis1 exp(coef1*)
-    real(dp) :: coef2                        ! Radial chemotaxis1 exp(coef2*)
-    real(dp) :: BG_flow_amp                  ! background velocity amplitude (um/min)
     real(dp) :: inletPressure                ! inlet pressure
-    real(dp) :: a_separation
-    real(dp) :: a_force
-    real(dp) :: c_force
-    real(dp) :: x0_force
-    real(dp) :: x1_force
-    real(dp) :: kdrag
-    real(dp) :: frandom
     real(dp) :: n_cell_positions             ! number of cell positions to save each time step
+    real(dp) :: k_empty = 0.52_dp
     integer :: Nsteps
     integer :: nsteps_per_min
     integer :: istep
@@ -177,7 +167,8 @@ module arrays
     integer :: nodes(8)
     real (dp) :: volume_fraction
     real (dp) :: cylinder_volume
-    integer :: cell_cnt
+    real(dp) :: cell_cnt
+    real(dp) :: k_conduct
   end type
   type(elem_type), allocatable, target :: sampling_elems(:)
 

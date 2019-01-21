@@ -484,44 +484,73 @@ end  subroutine
 
 
 subroutine cellcount()
-    use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_cells, cell_list
+    use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_cells, cell_list,plug_params
 
     use other_consts, only:PI
 
 
-!type(element_type) :: EPm
-!real (REAL_KIND) :: EpmCoor(:,:), Cell(:,:)
-!    real (dp) :: sum_PyVol,Pyramids_volume
-    integer :: i
-    integer :: xelem_num(4),yelem_num,zelem_num,nelem
-    real(dp) :: xelem_real
+    integer :: i,j,k,l
+    integer :: xelem_num(2),yelem_num(2),zelem_num(2),nelem
+    real(dp) :: xelem_real,yelem_real,zelem_real
 
 
     do i = 1,sampling_grid%nel
-      sampling_elems(nelem)%cell_cnt = 0
+      sampling_elems(i)%cell_cnt = 0.0_dp
     enddo
 
 
     do i=1,num_cells
 
       xelem_real = (cell_list(i)%centre(1,1)- sampling_grid%x_min) / sampling_grid%x_width
-      xelem_num (1:4) = ceiling(xelem_real)
+      if(xelem_real.eq.nint(xelem_real))then
+        xelem_num (1) =ceiling(xelem_real)
+        xelem_num(2) = xelem_num(1)-1
+      else
+        xelem_num (1:2) = ceiling(xelem_real)
+      endif
 
-      write(*,*) xelem_num
-    !    xelem_num = xelem_num - 1
-      yelem_num = ceiling((cell_list(i)%centre(2,1) - sampling_grid%y_min) / sampling_grid%y_width)
-      write(*,*) yelem_num
-    !if yelem_num == int(nelem_y):
-    !    yelem_num = yelem_num - 1
-      zelem_num = ceiling((cell_list(i)%centre(3,1) - sampling_grid%z_min) / sampling_grid%z_width)
-      write(*,*) zelem_num
-    !if zelem_num == int(nelem_z):
-    !    zelem_num = zelem_num - 1
-      nelem = xelem_num(1) + yelem_num * sampling_grid%nel_x + zelem_num * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
-      write(*,*) nelem
+      yelem_real = ((cell_list(i)%centre(2,1) - sampling_grid%y_min) / sampling_grid%y_width)
+      if(yelem_real.eq.nint(yelem_real))then
+        yelem_num (1) =ceiling(yelem_real)
+        yelem_num(2) = yelem_num(1)-1
+      else
+        yelem_num (1:2) = ceiling(yelem_real)
+      endif
 
-      sampling_elems(nelem)%cell_cnt = sampling_elems(nelem)%cell_cnt + 1
+      zelem_real = ((cell_list(i)%centre(3,1) - sampling_grid%z_min) / sampling_grid%z_width)
+      if(zelem_real.eq.nint(zelem_real))then
+        zelem_num (1) =ceiling(zelem_real)
+        zelem_num(2) = zelem_num(1)-1
+      else
+        zelem_num (1:2) = ceiling(zelem_real)
+      endif
+
+      do l = 1,2
+        do j = 1,2
+          do k = 1,2
+            nelem = xelem_num(l) + yelem_num(j) * sampling_grid%nel_x &
+              + zelem_num(k) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
+            sampling_elems(nelem)%cell_cnt = sampling_elems(nelem)%cell_cnt + 1.0_dp/8.0_dp
+          enddo
+        enddo
+      enddo
    end do
+   do i = 1,sampling_grid%nel
+      sampling_elems(i)%volume_fraction = sampling_elems(i)%cell_cnt*4.0_dp*PI*plug_params%Raverage**3.0_dp&
+        /(sampling_elems(i)%cylinder_volume*sampling_grid%volume*3.0_dp)
+      if(sampling_elems(i)%volume_fraction.gt.1.0_dp)then
+        sampling_elems(i)%volume_fraction = 0.98
+      endif
+      if(sampling_elems(i)%volume_fraction.eq.0.0_dp)then
+        sampling_elems(i)%k_conduct = plug_params%k_empty
+      else
+       sampling_elems(i)%k_conduct = (2.0_dp*plug_params%Raverage)**2.0_dp&
+          /180.0_dp*(1.0_dp-sampling_elems(i)%volume_fraction)**3.0_dp &
+            /(sampling_elems(i)%volume_fraction**2.0_dp) ! in um^2
+      endif
+      write(*,*) i,sampling_elems(i)%cell_cnt, sampling_elems(i)%volume_fraction,sampling_elems(i)%k_conduct
+
+   enddo
 end subroutine
 
 
