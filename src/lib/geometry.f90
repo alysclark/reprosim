@@ -1258,7 +1258,7 @@ contains
 subroutine read_icem_msh(filename)
     use arrays,only: dp,nodes,node_xyz,num_nodes,internal_faces,num_faces,&
       inlet_faces,num_inlet_faces,num_outlet_faces,num_wall_faces,&
-      outlet_faces,wall_faces,all_faces,num_all_faces
+      outlet_faces,wall_faces,all_faces,num_all_faces,face_stat,face_info
     use diagnostics, only: enter_exit,get_diagnostics_level
     use indices
     use other_consts, only: MAX_FILENAME_LEN
@@ -1474,21 +1474,26 @@ subroutine read_icem_msh(filename)
 
     num_all_faces = num_wall_faces + num_faces + num_inlet_faces + num_outlet_faces
     allocate(all_faces(num_all_faces,6))
+    allocate(face_info(num_all_faces))
 
     do i=1,num_faces
        all_faces(i,:)= internal_faces(i,:)
+       face_info(i) = face_stat%INTERNAL
     enddo
     i = num_faces
     do j=1,num_inlet_faces
        all_faces(i+j,:)= inlet_faces(j,:)
+       face_info(i) = face_stat%INLET
     enddo
     j= num_inlet_faces
     do k=1,num_outlet_faces
        all_faces(i+j+k,:)= outlet_faces(k,:)
+       face_info(i) = face_stat%OUTLET
     enddo
     k = num_outlet_faces
     do m=1,num_wall_faces
        all_faces(i+j+k+m,:)= wall_faces(m,:)
+       face_info(i) = face_stat%WALL
     enddo
 
 

@@ -28,6 +28,7 @@ module arrays
 
   integer, allocatable :: element2face(:,:)
   integer, allocatable :: face2element(:,:)
+  integer, allocatable :: face_info(:)
 
 
   real(dp),allocatable :: cell_field(:,:,:) !properties of cells
@@ -101,6 +102,14 @@ module arrays
   integer, parameter :: NCTYPES = 1
   integer, parameter :: TROPHO_CELL = 1
   integer, parameter :: MAX_CELLTYPES = 1
+
+  type face_type
+    integer :: WALL = 0
+    integer :: INTERNAL = 1
+    integer :: INLET = 2
+    integer :: OUTLET = 3
+  end type face_type
+  type(face_type) :: face_stat
 
 
   type cell_status
@@ -187,7 +196,7 @@ module arrays
     num_cells, num_cell_f, num_nodes, units, num_units, unit_field, node_field, dp, elem_cnct, elem_ordrs, elem_direction, &
     elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params,B_MATRIX
   public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control,all_faces,num_all_faces,element2face
-  public sampling_nodes,sampling_elems,sampling_grid,face2element,num_common_face,feA,feIA,feJA
+  public sampling_nodes,sampling_elems,sampling_grid,face2element,num_common_face,feA,feIA,feJA,face_stat,face_info
 
 contains
   subroutine set_node_field_value(row, col, value)  
