@@ -5,7 +5,7 @@ module arrays
   implicit none
 
   integer :: num_elems,num_nodes,num_units,maxgen,num_arterial_elems,num_cells,num_cell_f
-  integer :: num_faces,num_inlet_faces,num_outlet_faces,num_wall_faces,num_all_faces
+  integer :: num_faces,num_inlet_faces,num_outlet_faces,num_wall_faces,num_all_faces,num_common_face
 
   integer, parameter :: dp=kind(0.d0) !  for double precision
 
@@ -175,6 +175,10 @@ module arrays
   end type
   type(elem_type), allocatable, target :: sampling_elems(:)
 
+  real(dp), allocatable :: feA(:)
+  integer, allocatable :: feIA(:)
+  integer, allocatable :: feJA(:)
+
 
   private
   public cell_type, cell_list, set_node_field_value, cell_field, elem_field,internal_faces,&
@@ -183,7 +187,7 @@ module arrays
     num_cells, num_cell_f, num_nodes, units, num_units, unit_field, node_field, dp, elem_cnct, elem_ordrs, elem_direction, &
     elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params,B_MATRIX
   public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control,all_faces,num_all_faces,element2face
-  public sampling_nodes,sampling_elems,sampling_grid,face2element
+  public sampling_nodes,sampling_elems,sampling_grid,face2element,num_common_face,feA,feIA,feJA
 
 contains
   subroutine set_node_field_value(row, col, value)  

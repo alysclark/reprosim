@@ -5,6 +5,7 @@
 
 SHO_PUBLIC void read_b_matrix(const char *filename);
 SHO_PUBLIC void read_e2face(const char *filename);
+SHO_PUBLIC void read_face2e(const char *filename);
 SHO_PUBLIC void assemble_sparse_matrices();
 SHO_PUBLIC void create_sampling_grid();
 

@@ -19,6 +19,13 @@ void read_e2face(const char *filename)
 }
 
 
+void read_face2e(const char *filename)
+{
+    int filename_len = strlen(filename);
+    read_face2e_c(filename, &filename_len);
+}
+
+
 void assemble_sparse_matrices()
 {
     assemble_sparse_matrices_c();

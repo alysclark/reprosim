@@ -12,6 +12,7 @@ module mix_fem
   public assemble_sparse_matrices
   public read_b_matrix
   public read_e2face
+  public read_face2e
   public create_sampling_grid
 contains
 
@@ -20,7 +21,7 @@ contains
 !
 subroutine assemble_sparse_matrices
     use arrays, only: num_elems,B_MATRIX,all_faces,num_all_faces,element2face,plug_params,&
-      elem_field
+      elem_field,num_common_face, feA, feIA, feJA
     use diagnostics, only: enter_exit,get_diagnostics_level
     use indices
     use other_consts, only: MAX_FILENAME_LEN
@@ -30,14 +31,12 @@ subroutine assemble_sparse_matrices
 
 !integer :: nel
     real(dp) :: B(6,6),C(6)
-    real(dp) :: BB(6*6*num_elems-CommonFaceNo)
-!real(dp) :: CC(6*nel)
-!real(dp) :: A(8*6*nel-CommonFaceNo)
-!integer :: IB(6*6*nel-CommonFaceNo), JB(6*6*nel-CommonFaceNo)!, ones(6)
-!integer :: IC(6*nel), JC(6*nel),All_Surfaces(:,:), element2face(:,:)
-!integer :: IA(8*6*nel-CommonFaceNo),JA(8*6*nel-CommonFaceNo)
+    real(dp) :: BB(6*6*num_elems-num_common_face)
+    real(dp) :: CC(6*num_elems)
+    integer :: IB(6*6*num_elems-num_common_face), JB(6*6*num_elems-num_common_face)!, ones(6)
+    integer :: IC(6*num_elems), JC(6*num_elems)
 !!real(dp), allocatable :: Ak(:,:)
-    integer :: ii,j, I(6), signum(6), DiagSig(6,6)
+    integer :: ii,j, jj, I(6), signum(6), DiagSig(6,6)
     integer :: counter, Recount1, Ccounter, commonCount
     logical :: ok1
 !character * ( 255 ) :: fileplace, Bmatrix_filename
@@ -49,6 +48,9 @@ subroutine assemble_sparse_matrices
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
+    if(.not.allocated(feA)) allocate(feA(8*6*num_elems-num_common_face))
+    if(.not.allocated(feIA)) allocate(feIA(8*6*num_elems-num_common_face))
+    if(.not.allocated(feJA)) allocate(feJA(8*6*num_elems-num_common_face))
 
     Recount1=0
     counter=0
@@ -70,17 +72,17 @@ subroutine assemble_sparse_matrices
     C(:)=matmul(ones(6),diag(signum,size(signum(:))))
     do ii=1,6
         do jj =1,6
-            if (B(ii,jj).ne.0 ) then
+            if (B(ii,jj).ne.0.0_dp ) then
                 if (counter > 6) then
                     ok1 = .false.
                     Recount1=findequal(IB(1:counter),JB(1:counter),I(ii),I(jj),ok1)
-
+!
                     if ( ok1 ) then
                         BB(Recount1) = B(ii,jj)+BB(Recount1)
                     else
                         counter=counter+1
                         BB(counter) = B(ii,jj)
-                        IB(counter) = I(ii)
+                       IB(counter) = I(ii)
                         JB(counter) = I(jj)
                     endif
                 else
@@ -95,11 +97,16 @@ subroutine assemble_sparse_matrices
         CC(Ccounter)= C(ii)
         IC(Ccounter)=I(ii)
         JC(Ccounter)=j
+      enddo
     enddo
-enddo
 
-
-    enddo
+    write(*,*) 'Assembling global stiffness matrices'
+    !Global stiffness matrix A
+    feA(:) = [BB(:), CC(:), CC(:)]
+    !Row identifiers
+    feIA(:) = [IB(:), IC(:), JC(:) + num_all_faces*ones(size(JC(:)))]
+    !column identifiers
+    feJA(:) = [JB(:), JC(:) + num_all_faces*ones(size(JC(:))), IC(:)]
 
 !Each element has a b-matrix, etc,which Rojan has assembled as a number of files to read in.
 !for now we will have to do this because we don't have the code that she wrote for this
@@ -185,39 +192,46 @@ subroutine read_e2face(filename,filename_len)
 end subroutine read_e2face
 
 
-!subroutine read_face2e(filename,filename_len)
-!   use arrays, only: num_elems,element2face
-!    use diagnostics, only: enter_exit,get_diagnostics_level
-!    use indices
-!    use other_consts, only: MAX_FILENAME_LEN
-!    implicit none
-!  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_READ_FACE2E" :: READ_FACE2E
-!
-!    character(len=MAX_FILENAME_LEN), intent(in) :: filename !Input nodefile
-!    integer, intent(in) :: filename_len
-!
-!    character(len=MAX_FILENAME_LEN) :: appended_fn
-!    character(len = filename_len) ::trimfilename
-!    integer :: ne
-!
-!    character(len=60) :: sub_name
-!    integer :: diagnostics_level
-!
-!    sub_name = 'read_face2e'
-!    call enter_exit(sub_name,1)
-!    call get_diagnostics_level(diagnostics_level)
-!
-!    trimfilename = filename(1:filename_len)
-!    allocate(face2element(num_elems,6))
-!
-!    call read_integer_array(adjustl(trimfilename),num_elems,6,face2element)
-!
-!    write(*,*) face2element(1,:)
-!    write(*,*) face2element(num_elems,:)
-!
-!
-!    call enter_exit(sub_name,2)
-!end subroutine read_face2e
+subroutine read_face2e(filename,filename_len)
+   use arrays, only: num_elems,face2element,num_common_face
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use indices
+    use other_consts, only: MAX_FILENAME_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_READ_FACE2E" :: READ_FACE2E
+
+    character(len=MAX_FILENAME_LEN), intent(in) :: filename !Input nodefile
+    integer, intent(in) :: filename_len
+
+
+    character(len=MAX_FILENAME_LEN) :: appended_fn
+    character(len = filename_len) ::trimfilename
+    integer :: ne,nf
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'read_face2e'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    trimfilename = filename(1:filename_len)
+    allocate(face2element(num_elems,6))
+
+    call read_integer_array(adjustl(trimfilename),num_elems,6,face2element)
+
+    write(*,*) face2element(1,:)
+    write(*,*) face2element(num_elems,:)
+
+    do nf = 1,size(face2element,1)
+      if (face2element(nf,6)/=0) then
+        num_common_face = num_common_face + 1
+      endif
+    enddo
+
+    write(*,*) 'num common face', num_common_face
+    call enter_exit(sub_name,2)
+end subroutine read_face2e
 
 !
 !#########################################################
@@ -742,6 +756,25 @@ integer :: Msize, i, ones(Msize)
         ones(i) = 1
     enddo
 !print *, "ones=", ones(:)
+end function
+
+!-----------------------------------------------
+!
+!-----------------------------------------------
+function findequal(IB, JB,Row,Col,ok)
+
+integer :: IB(:), JB(:), Row,Col , findequal, ii
+logical :: ok
+ ok = .false.
+do ii=1,size(IB)
+    if (IB(ii)==Row .AND. JB(ii)==Col) then
+        findequal=ii
+        !print *, "recount", findequal
+        ok = .true.
+        return
+    endif
+enddo
+
 end function
 
 
