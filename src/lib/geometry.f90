@@ -1483,18 +1483,19 @@ subroutine read_icem_msh(filename)
     i = num_faces
     do j=1,num_inlet_faces
        all_faces(i+j,:)= inlet_faces(j,:)
-       face_info(i) = face_stat%INLET
+       face_info(i+j) = face_stat%INLET
     enddo
     j= num_inlet_faces
     do k=1,num_outlet_faces
        all_faces(i+j+k,:)= outlet_faces(k,:)
-       face_info(i) = face_stat%OUTLET
+       face_info(i+j+k) = face_stat%OUTLET
     enddo
     k = num_outlet_faces
     do m=1,num_wall_faces
        all_faces(i+j+k+m,:)= wall_faces(m,:)
-       face_info(i) = face_stat%WALL
+       face_info(i+j+k+m) = face_stat%WALL
     enddo
+
 
 
     call enter_exit(sub_name,2)

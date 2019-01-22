@@ -14,6 +14,7 @@ module mix_fem
   public read_e2face
   public read_face2e
   public create_sampling_grid
+  public compute_body_forces
 contains
 
 !
@@ -82,25 +83,35 @@ subroutine assemble_sparse_matrices
                     else
                         counter=counter+1
                         BB(counter) = B(ii,jj)
-                       IB(counter) = I(ii)
+                        IB(counter) = I(ii)
+                        if(IB(counter).eq.0)write(*,*)'else10',counter
                         JB(counter) = I(jj)
+                        if(JB(counter).eq.0)write(*,*)'else10',counter
+
                     endif
                 else
                         counter=counter+1
                         BB(counter) = B(ii,jj)
                         IB(counter) = I(ii)
+                        if(IB(counter).eq.0)write(*,*)'else1',counter
                         JB(counter) = I(jj)
+                        if(JB(counter).eq.0)write(*,*)'else20',counter
+
                 endif
             endif
         enddo
         Ccounter = Ccounter+1
         CC(Ccounter)= C(ii)
         IC(Ccounter)=I(ii)
+        if(IB(Ccounter).eq.0)write(*,*)'else2',Ccounter
+
         JC(Ccounter)=j
+        if(JC(Ccounter).eq.0)write(*,*)'else20',Ccounter
+
       enddo
     enddo
 
-    write(*,*) 'Assembling global stiffness matrices'
+    if(diagnostics_level.gt.1)write(*,*) 'Assembling global stiffness matrices'
     !Global stiffness matrix A
     feA(:) = [BB(:), CC(:), CC(:)]
     !Row identifiers
@@ -146,7 +157,7 @@ subroutine read_b_matrix(filename,filename_len)
       write(appended_fn,'(A100,I0,".txt")')trimfilename,ne
       call read_real_array(adjustl(appended_fn),6,6,B_MATRIX(ne)%Inside_B)
 
-      write(*,*) appended_fn,B_MATRIX(ne)%Inside_B
+      if(diagnostics_level.gt.1)write(*,*) appended_fn,B_MATRIX(ne)%Inside_B
     enddo
 
     call enter_exit(sub_name,2)
@@ -184,8 +195,8 @@ subroutine read_e2face(filename,filename_len)
 
     call read_integer_array(adjustl(trimfilename),num_elems,6,element2face)
 
-    write(*,*) element2face(1,:)
-    write(*,*) element2face(num_elems,:)
+    if(diagnostics_level.gt.1)write(*,*) element2face(1,:)
+    if(diagnostics_level.gt.1)write(*,*) element2face(num_elems,:)
 
 
     call enter_exit(sub_name,2)
@@ -193,7 +204,7 @@ end subroutine read_e2face
 
 
 subroutine read_face2e(filename,filename_len)
-   use arrays, only: num_elems,face2element,num_common_face
+   use arrays, only: num_elems,face2element,num_common_face,num_all_faces
     use diagnostics, only: enter_exit,get_diagnostics_level
     use indices
     use other_consts, only: MAX_FILENAME_LEN
@@ -216,20 +227,20 @@ subroutine read_face2e(filename,filename_len)
     call get_diagnostics_level(diagnostics_level)
 
     trimfilename = filename(1:filename_len)
-    allocate(face2element(num_elems,6))
+    allocate(face2element(num_all_faces,6))
 
-    call read_integer_array(adjustl(trimfilename),num_elems,6,face2element)
+    call read_integer_array(adjustl(trimfilename),num_all_faces,6,face2element)
 
-    write(*,*) face2element(1,:)
-    write(*,*) face2element(num_elems,:)
-
+    if(diagnostics_level.gt.1)write(*,*) face2element(1,:)
+    if(diagnostics_level.gt.1)write(*,*) face2element(num_all_faces,:)
+    num_common_face = 0
     do nf = 1,size(face2element,1)
-      if (face2element(nf,6)/=0) then
+      if (face2element(nf,6).ne.0) then
         num_common_face = num_common_face + 1
       endif
     enddo
 
-    write(*,*) 'num common face', num_common_face
+    if(diagnostics_level.gt.1)write(*,*) 'num common face', num_common_face
     call enter_exit(sub_name,2)
 end subroutine read_face2e
 
@@ -341,12 +352,21 @@ end subroutine read_face2e
 
 
 subroutine read_real_array(file_name, NoRow, Nocol,n2f)
+    use diagnostics, only: enter_exit,get_diagnostics_level
+
 
 character * ( * ) :: file_name
 integer :: input, status1,size1
 integer :: input_stat,I, ii,Nocol,NoRow
 integer :: line_no
 real (dp), allocatable :: n2f(:,:)
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'read_real_array'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
 
 IF (ALLOCATED (n2f)) DEALLOCATE (n2f)
 
@@ -374,12 +394,21 @@ end subroutine read_real_array
 
 
 subroutine read_integer_array(file_name, NoRow, Nocol,n2f)
+    use diagnostics, only: enter_exit,get_diagnostics_level
+
 
 character * ( * ) :: file_name
 integer :: input, status1,size1
 integer :: input_stat,I, ii,Nocol,NoRow
 integer :: line_no
 integer, allocatable :: n2f(:,:)
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'read_integer_array'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
 
 IF (ALLOCATED (n2f)) DEALLOCATE (n2f)
 
@@ -411,6 +440,8 @@ end subroutine read_integer_array
 subroutine create_sampling_grid()
 
   use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems
+  use diagnostics, only: enter_exit,get_diagnostics_level
+
 
     integer :: i, j, k, counter
     real(dp) :: x, y, z, site(3)
@@ -419,6 +450,13 @@ subroutine create_sampling_grid()
     real (dp) :: x_min, y_min, z_min, x_max, y_max, z_max
     integer :: EN1, EN2, EN3, EN4, EN5, EN6, EN7, EN8
     integer :: NodeNo(8), ElCount
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'create_sampling_grid'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
 
 
     sampling_grid%nsd  = 3                             ! number of space dimensions
@@ -460,7 +498,7 @@ subroutine create_sampling_grid()
         enddo
     enddo
 
-    write(*,*) 'finished with the nodes'
+    if(diagnostics_level.gt.1)write(*,*) 'finished with the nodes'
     allocate(sampling_elems(sampling_grid%nel))
     ElCount=0
     do k =  1,sampling_grid%nel_z
@@ -496,7 +534,7 @@ end subroutine create_sampling_grid
 subroutine mesh_cylinder_volume()
 
     use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems
-
+    use diagnostics, only: enter_exit,get_diagnostics_level
     use other_consts, only:PI
 
     integer :: nel_x ,nel_y , nel_z, total_elems
@@ -506,6 +544,13 @@ subroutine mesh_cylinder_volume()
     real (dp) :: angle_between, segmentprop, triangle_height
     real (dp) :: chord_length, segment_area,corner_triangle_area
     real (dp) :: approx_circle_area, volume
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'mesh_cylinder_volume'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
 
     total_elems=sampling_grid%nel
 
@@ -536,7 +581,7 @@ subroutine mesh_cylinder_volume()
 
         sampling_elems(i)%cylinder_volume = approx_circle_area*(z1-z0)/sampling_grid%volume
         if(sampling_elems(i)%cylinder_volume.gt.1.0_dp)then
-        write(*,*) 'here', x1,x0,y1,y0,z1,z0,corner_triangle_area,segment_area,sampling_grid%volume
+        if(diagnostics_level.gt.1)write(*,*) 'here', x1,x0,y1,y0,z1,z0,corner_triangle_area,segment_area,sampling_grid%volume
         endif
 
        elseif ((sqrt(x1**2+y0**2)<200.0_dp).AND.(sqrt(x0**2+y0**2)<200.0_dp) ) then
@@ -558,7 +603,7 @@ subroutine mesh_cylinder_volume()
            sqrt(200.0_dp**2-y1**2))-x0)*(y1-y0)+abs(sqrt(200.0_dp**2-y0**2)-sqrt(200.0_dp**2-y1**2))*(y1-y0)*0.5
            sampling_elems(i)%cylinder_volume = approx_circle_area*(z1-z0)/sampling_grid%volume
        endif
-       write(*,*) i,sampling_elems(i)%cylinder_volume
+       if(diagnostics_level.gt.1)write(*,*) i,sampling_elems(i)%cylinder_volume
     enddo
 
 
@@ -571,6 +616,7 @@ end  subroutine
 subroutine mesh_node2sample()
     use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_nodes,node_xyz,&
       elem_3d,num_elems,elem_field
+    use diagnostics, only: enter_exit,get_diagnostics_level
     use indices, only: ne_cond
     use other_consts, only:PI
 
@@ -579,6 +625,12 @@ subroutine mesh_node2sample()
     integer :: xelem_num,yelem_num,zelem_num,nelem
     real(dp), allocatable :: node_cond(:),node_cond_sm(:), nelem_node(:)
 
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'mesh_node2sample'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
 
     do i = 1,sampling_grid%nel
       sampling_elems(i)%mesh_node_cnt = 0
@@ -604,11 +656,11 @@ subroutine mesh_node2sample()
 
       node_cond(i) = sampling_elems(nelem)%k_conduct
 
-      write(*,*) node_cond(i)
+      if(diagnostics_level.gt.1)write(*,*) node_cond(i)
    enddo
 
    do i = 1,sampling_grid%nel
-      write(*,*) i,sampling_elems(i)%mesh_node_cnt
+      if(diagnostics_level.gt.1)write(*,*) i,sampling_elems(i)%mesh_node_cnt
    enddo
 
    do ne = 1,num_elems
@@ -620,7 +672,7 @@ subroutine mesh_node2sample()
 
      !smoothing step
      !Give back to nodes
-     write(*,*) ne, elem_field(ne,ne_cond)
+     if(diagnostics_level.gt.1)write(*,*) ne, elem_field(ne,ne_cond)
      do i =1,8
        nelem_node(elem_3d(ne,i)) = nelem_node(elem_3d(ne,i)) + 1.0_dp
        node_cond_sm(elem_3d(ne,i)) = node_cond_sm(elem_3d(ne,i)) + elem_field(ne,ne_cond)
@@ -637,7 +689,7 @@ subroutine mesh_node2sample()
        elem_field(ne,ne_cond) = elem_field(ne,ne_cond) + node_cond_sm(elem_3d(ne,i))
      enddo
      elem_field(ne,ne_cond)  = elem_field(ne,ne_cond) / 8.0_dp
-     write(*,*) ne, elem_field(ne,ne_cond)
+     if(diagnostics_level.gt.1)write(*,*) ne, elem_field(ne,ne_cond)
    enddo
 
    deallocate(node_cond)
@@ -650,13 +702,20 @@ end subroutine
 
 subroutine cellcount()
     use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_cells, cell_list,plug_params
-
+    use diagnostics, only: enter_exit,get_diagnostics_level
     use other_consts, only:PI
 
 
     integer :: i,j,k,l
     integer :: xelem_num(2),yelem_num(2),zelem_num(2),nelem
     real(dp) :: xelem_real,yelem_real,zelem_real
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'cellcount'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
 
 
     do i = 1,sampling_grid%nel
@@ -715,10 +774,203 @@ subroutine cellcount()
       if(sampling_elems(i)%k_conduct.gt.plug_params%k_empty)then
         sampling_elems(i)%k_conduct = plug_params%k_empty
       endif
-      write(*,*) i,sampling_elems(i)%cell_cnt, sampling_elems(i)%volume_fraction,sampling_elems(i)%k_conduct
-
+      if(diagnostics_level.gt.1)then
+        write(*,*) i,sampling_elems(i)%cell_cnt, sampling_elems(i)%volume_fraction,sampling_elems(i)%k_conduct
+      endif
    enddo
 end subroutine
+
+!
+!#######################################
+!
+subroutine compute_body_forces(inletPressure,outletPressure)
+    use arrays, only: num_all_faces,num_elems,feAx,feBodyForce,feQ_P,feFreeFaces,num_wall_faces,&
+       face_info, face_stat,feIA, feJA,feA
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use indices
+    use other_consts, only: MAX_FILENAME_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_COMPUTE_BODY_FORCE" :: READ_COMPUTE_BODY_FORCE
+    real(dp), intent(in) :: inletPressure, outletPressure
+
+    integer :: i, tmp(num_all_faces+num_elems),cnt_wall
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'compute_body_forces'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    if(.not.allocated(feAx))allocate(feAx(num_all_faces+num_elems))
+    if(.not.allocated(feBodyForce))allocate(feBodyForce(num_all_faces+num_elems))
+    if(.not.allocated(feQ_P))allocate(feQ_P(num_all_faces+num_elems))
+    if(.not.allocated(feFreeFaces))allocate(feFreeFaces(num_all_faces+num_elems-num_wall_faces))
+
+    feBodyForce = 0.0_dp
+    feQ_P = 0.0_dp
+    tmp(:) = 0
+    cnt_wall = 0
+    do i= 1, num_all_faces
+      if(face_info(i).eq.face_stat%INLET)then
+        feBodyForce(i) = outletPressure!inletPressure
+      elseif(face_info(i).eq.face_stat%OUTLET)then
+        feBodyForce(i) = inletPressure!outletPressure
+      elseif(face_info(i).eq.face_stat%WALL)then
+        feQ_P(i) = 0.0_dp
+        cnt_wall = cnt_wall+1
+        tmp(i) = 1
+      endif
+    enddo
+
+    !free faces
+    write(*,*) size(tmp),size(feFreeFaces),cnt_wall,num_wall_faces
+    feFreeFaces(:) = findNONzeros(tmp(:))
+
+    call ax_st(size(feBodyForce),size(feA), feIA, feJA, &
+    feA,feQ_P, feAx ) !computes A*x, A is a sparse matrix
+    feBodyForce(:) = feBodyForce(:) - feAx(:)
+
+    call enter_exit(sub_name,2)
+end subroutine compute_body_forces
+
+!
+!#######################################
+!
+subroutine solve_fem
+    use arrays, only: dp,feIA,feFreeFaces,feJA,feBodyForce,feQ_P,feA
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use indices
+    use sparsekit
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SOLVE_FEM" :: READ_SOLVE_FEM
+
+    integer :: count1,i,j,k,n,sizeFFace,rowcount,columncount
+
+
+    integer, allocatable :: Ap_save(:), Ai_save(:), NewIA(:), NewJA(:),row_ind(:), col_ptr(:)
+    integer, allocatable :: jao(:),iao(:)
+    real(dp), allocatable :: Ax_save(:),newBForce(:), newQP(:),newA(:),ao(:),acsc(:)
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'solve_fem'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    count1=0
+    do i = 1,size(feFreeFaces)
+      do j= 1, size(feIA)
+         if (feFreeFaces(i).eq.feIA(j)) then
+            do k = 1, size(feFreeFaces)
+                if (feFreeFaces(k).eq.feJA(j)) then
+                count1 = count1+1
+                endif
+            enddo
+         endif
+      enddo
+  enddo
+  n = count1
+  sizeFFace = size(feFreeFaces)
+  allocate(Ap_save(sizeFFace+1))
+  allocate(Ai_save(n))
+  allocate(Ax_save(n))
+  allocate(NewIA(n))
+  allocate(newJA(n))
+  allocate(newBForce(sizeFFace))
+  allocate( newQP(sizeFFace))
+  allocate(newA(n))
+  allocate(ao(n))
+  allocate(jao(n))
+  allocate(iao(n))
+  allocate(acsc(n))
+  allocate(row_ind(n))
+  allocate(col_ptr(n))
+
+  count1 = 0
+  rowcount=0
+  do i = 1, sizeFFace
+    rowcount=rowcount+1
+    columncount=0
+    do j= 1, size(feIA)
+        if (feFreeFaces(i)==feIA(j)) then
+            do k = 1, sizeFFace
+                if (feJA(j)==feFreeFaces(k)) then
+                    count1 = count1+1
+                    NewA(count1) = feA(j)
+                    NewIA(count1) = rowcount !IA(j)
+                    NewJA(count1) = k !JA(j)
+                    !write (out_unit,*) NewA(count1),NewIA(count1),NewJA(count1)
+                endif
+            enddo
+        endif
+    enddo
+    newBForce(i) = feBodyForce(feFreeFaces(i))
+    newQP(i) = feQ_P(feFreeFaces(i))
+  enddo
+
+
+    call coocsr (sizeFFace,size(NEWA(:)),NewA,NEWIA,NEWJA,ao,jao,iao )
+
+    call rearrange_cr (sizeFFace, iao, jao, ao )
+
+    call csrcsc (sizeFFace, 1, 1, ao, jao, iao, acsc, row_ind, col_ptr )
+!!call logger('Done csrcsc')
+!!write (*,*) "nz",size(NEWA(:))
+!!do i=1,size(NEWA(:))
+! !   write (out_unit,*) acsc(i)
+!!enddo
+!!----------------------------------------------------------------
+!! convert from 1-based to 0-based
+!!----------------------------------------------------------------
+!do j = 1, sizeFFace+1
+!    col_ptr(j) = col_ptr(j) - 1
+!enddo
+!do p = 1, size(NEWA(:))
+!    row_ind(p) = row_ind(p) - 1
+!enddo
+!!========== start umf solver=============================
+!!isolve_mode = SOLVE_NO_ITERATION
+!!call cpu_time(t1)
+!!call solve_umf(isolve_mode, sizeFFace, col_ptr, row_ind, acsc, newBForce, solution)
+!!call cpu_time(t2)
+!!write(*,'(a,f8.1)') 'Solve time (sec): ',t2-t1
+!
+!
+!!! print the residual.
+!!call resid (sizeFFace, col_ptr, row_ind, acsc,  solution, newBForce, residual)
+!!========== end umf solver=============================
+!
+!
+!!========== start slu solver=============================
+!solution= newBForce
+!Ap_save = col_ptr
+!Ai_save = row_ind
+!Ax_save = acsc
+!call cpu_time(t1)
+!!!write(*,*) 'call slu_solve: n,nz: ',n,nz
+!!!write(*,*)
+!call slu_solve(4, sizeFFace, size(NEWA(:)), acsc, row_ind, col_ptr, solution);
+!!!UMF call solve(isolve_mode, n, Ap, Ai, Ax, b, x)
+!call cpu_time(t2)
+!write(*,*)
+!write(*,'(a,f8.1)') 'Solve time (cpu_time/nprocs) (sec): ',(t2-t1)/4
+!
+!!! print the residual.
+!write(*,*) 'After solve, residual:'
+!call resid (sizeFFace, Ap_save, Ai_save, Ax_save, solution, newBForce, residual)
+!!========== end slu solver=============================
+!
+!   newQP = solution
+    !map back to soln array
+
+    do i = 1, sizeFFace
+        feQ_P(feFreeFaces(i))= newQP(i)
+    enddo
+
+    call enter_exit(sub_name,2)
+end subroutine solve_fem
+
 
 
 !-----------------------------------------------
@@ -776,6 +1028,181 @@ do ii=1,size(IB)
 enddo
 
 end function
+
+!-----------------------------------------------
+!
+!-----------------------------------------------
+function findNONzeros(TMP)
+use arrays, only: num_all_faces,num_elems,num_wall_faces
+integer :: TMP(num_all_faces+num_elems), findNONzeros(num_all_faces+num_elems-num_wall_faces)
+integer :: i, count1
+
+count1=0
+do i = 1, size(TMP(:))
+    if (TMP(i)==0) then
+    count1=count1+1
+        findNONzeros(count1) = i
+    endif
+enddo
+
+
+
+end function
+
+subroutine ax_st ( n, nz_num, ia, ja, a, x, w )
+
+!*****************************************************************************80
+!
+!! AX_ST computes A*x for a matrix stored in sparset triplet form.
+!
+!  Discussion:
+!
+!    The matrix A is assumed to be sparse.  To save on storage, only
+!    the nonzero entries of A are stored.  For instance, the K-th nonzero
+!    entry in the matrix is stored by:
+!
+!      A(K) = value of entry,
+!      IA(K) = row of entry,
+!      JA(K) = column of entry.
+!
+!  Licensing:
+!
+!    This code is distributed under the GNU LGPL license.
+!
+!  Modified:
+!
+!    08 August 2006
+!
+!  Author:
+!
+!    Original C version by Lili Ju.
+!    FORTRAN90 version by John Burkardt.
+!
+!  Reference:
+!
+!    Richard Barrett, Michael Berry, Tony Chan, James Demmel,
+!    June Donato, Jack Dongarra, Victor Eijkhout, Roidan Pozo,
+!    Charles Romine, Henk van der Vorst,
+!    Templates for the Solution of Linear Systems:
+!    Building Blocks for Iterative Methods,
+!    SIAM, 1994.
+!    ISBN: 0898714710,
+!    LC: QA297.8.T45.
+!
+!    Tim Kelley,
+!    Iterative Methods for Linear and Nonlinear Equations,
+!    SIAM, 2004,
+!    ISBN: 0898713528,
+!    LC: QA297.8.K45.
+!
+!    Yousef Saad,
+!    Iterative Methods for Sparse Linear Systems,
+!    Second Edition,
+!    SIAM, 2003,
+!    ISBN: 0898715342,
+!    LC: QA188.S17.
+!
+!  Parameters:
+!
+!    Input, integer ( kind = 4 ) N, the order of the system.
+!
+!    Input, integer ( kind = 4 ) NZ_NUM, the number of nonzeros.
+!
+!    Input, integer ( kind = 4 ) IA(NZ_NUM), JA(NZ_NUM), the row and column
+!    indices of the matrix values.
+!
+!    Input, real ( kind = 8 ) A(NZ_NUM), the matrix values.
+!
+!    Input, real ( kind = 8 ) X(N), the vector to be multiplied by A.
+!
+!    Output, real ( kind = 8 ) W(N), the value of A*X.
+!
+  use arrays, only: dp
+  use diagnostics, only: enter_exit,get_diagnostics_level
+
+  implicit none
+
+  integer :: n
+  integer :: nz_num
+
+  real (dp) :: a(nz_num)
+  integer :: i
+  integer :: ia(nz_num)
+  integer :: j
+  integer :: ja(nz_num)
+  integer :: k
+  real (dp) :: w(n)
+  real (dp) :: x(n)
+
+  w(1:n) = 0.0D+00
+  write(*,*) nz_num
+  do k = 1, nz_num
+    i = ia(k)
+    j = ja(k)
+    w(i) = w(i) + a(k) * x(j)
+  end do
+
+  return
+end subroutine
+
+!-------------------------------------------------------
+!*****************************************************************************
+ subroutine rearrange_cr ( n, ia, ja, a )
+!!! REARRANGE_CR sorts a sparse compressed row matrix.
+    !    This routine guarantees that the entries in the CR matrix
+    !    are properly sorted.
+    !
+    !    After the sorting, the entries of the matrix are rearranged in such
+    !    a way that the entries of each column are listed in ascending order
+    !    of their column values.
+    !    Input, integer :: N, the order of the system.
+    !
+    !    Input, integer :: NZ_NUM, the number of nonzeros.
+    !
+    !    Input, integer :: IA(N+1), the compressed row indices.
+    !
+    !    Input/output, integer :: JA(NZ_NUM), the column indices.
+    !    On output, these may have been rearranged by the sorting.
+    !
+    !    Input/output, real (REAL_KIND) :: A(NZ_NUM), the matrix values.  On output,
+    !    the matrix values may have been moved somewhat because of the sorting.
+    !
+    use arrays, only: dp
+    implicit none
+
+    integer :: n
+    integer :: ia(*) !ia(n+1)
+    integer :: ja(*) !ja(nz_num)
+    real (dp) :: a(*) !a(nz_num)
+
+    integer :: i
+    integer :: i4temp
+    integer :: k
+    integer :: l
+    real (dp) :: r8temp
+
+    do i = 1, n
+
+       do k = ia(i), ia(i+1) - 2
+          do l = k + 1, ia(i+1) - 1
+
+             if ( ja(l) < ja(k) ) then
+                i4temp = ja(l)
+                ja(l)  = ja(k)
+                ja(k)  = i4temp
+
+                r8temp = a(l)
+                a(l)   = a(k)
+                a(k)   = r8temp
+             end if
+
+          end do
+       end do
+
+    end do
+
+    return
+ end subroutine rearrange_cr
 
 
 end module mix_fem

@@ -104,10 +104,10 @@ module arrays
   integer, parameter :: MAX_CELLTYPES = 1
 
   type face_type
-    integer :: WALL = 0
-    integer :: INTERNAL = 1
-    integer :: INLET = 2
-    integer :: OUTLET = 3
+    integer :: WALL = 1
+    integer :: INTERNAL = 2
+    integer :: INLET = 3
+    integer :: OUTLET = 4
   end type face_type
   type(face_type) :: face_stat
 
@@ -139,7 +139,7 @@ module arrays
     real(dp) :: ntgui                        ! interval between GUI outputs (timesteps)
     real(dp) :: idelay                       ! simulation step delay (ms)
     real(dp) :: ichemo_1
-    real(dp) :: inletPressure                ! inlet pressure
+    real(dp) :: inletPressure               ! inlet pressure
     real(dp) :: n_cell_positions             ! number of cell positions to save each time step
     real(dp) :: k_empty = 10.0_dp
     real(dp) :: blood_viscosity = 0.3e-3_dp !PA
@@ -185,8 +185,14 @@ module arrays
   type(elem_type), allocatable, target :: sampling_elems(:)
 
   real(dp), allocatable :: feA(:)
+  real(dp), allocatable :: feAx(:)
   integer, allocatable :: feIA(:)
   integer, allocatable :: feJA(:)
+  !Q-P Matrix
+  real(dp), allocatable :: feQ_P(:)
+  !Body Force Matrix
+  real (dp), allocatable :: feBodyForce(:)
+  integer, allocatable :: FeFreeFaces(:)
 
 
   private
@@ -197,7 +203,7 @@ module arrays
     elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params,B_MATRIX
   public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control,all_faces,num_all_faces,element2face
   public sampling_nodes,sampling_elems,sampling_grid,face2element,num_common_face,feA,feIA,feJA,face_stat,face_info
-
+  public feQ_P, feBodyForce,feFreeFaces,feAx
 contains
   subroutine set_node_field_value(row, col, value)  
   !*Description:* This subroutine sets the value of a node field

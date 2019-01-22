@@ -109,5 +109,20 @@ call create_sampling_grid()
 
 end subroutine create_sampling_grid_c
 
+subroutine compute_body_forces_c(inletPressure,outletPressure) bind(C, name="compute_body_forces_c")
+use arrays, only: dp
+use mix_fem, only: compute_body_forces
+implicit none
+real(dp), intent(in):: inletPressure,outletPressure
+
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_compute_body_forces(inletPressure,outletPressure)
+#else
+call compute_body_forces(inletPressure,outletPressure)
+#endif
+
+end subroutine compute_body_forces_c
+
 
 end module mix_fem_c

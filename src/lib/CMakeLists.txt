@@ -13,6 +13,7 @@ set(LIB_SRCS
   other_consts.f90
   pressure_resistance_flow.f90
   solve.f90
+  sparsekit.f90
   mix_fem.f90
 
 )

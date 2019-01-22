@@ -174,7 +174,8 @@ end subroutine create_cell
 !
 
 subroutine deallocate_abm_memory
-    use arrays, only: cell_type,cell_list, num_cells,num_cell_f,cell_field
+    use arrays, only: cell_type,cell_list, num_cells,num_cell_f,cell_field,&
+      feAx,feBodyForce,feQ_P,feFreeFaces,feA,feIA,feJA
     use diagnostics, only: enter_exit,get_diagnostics_level
 
     !local variables
@@ -196,6 +197,14 @@ subroutine deallocate_abm_memory
     if(allocated(cell_field))then
       deallocate (cell_field, STAT = AllocateStatus)
     endif
+    if(allocated(feAx))deallocate(feAx)
+    if(allocated(feBodyForce))deallocate(feBodyForce)
+    if(allocated(feQ_P))deallocate(feQ_P)
+    if(allocated(feFreeFaces))deallocate(feFreeFaces)
+    if(allocated(feA)) deallocate(feA)
+    if(allocated(feIA)) deallocate(feIA)
+    if(allocated(feJA)) deallocate(feJA)
+
 
     call enter_exit(sub_name,2)
 end subroutine deallocate_abm_memory
