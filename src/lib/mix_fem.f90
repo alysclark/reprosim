@@ -19,7 +19,8 @@ contains
 !############################################################
 !
 subroutine assemble_sparse_matrices
-    use arrays, only: num_elems,B_MATRIX,all_faces,num_all_faces,element2face
+    use arrays, only: num_elems,B_MATRIX,all_faces,num_all_faces,element2face,plug_params,&
+      elem_field
     use diagnostics, only: enter_exit,get_diagnostics_level
     use indices
     use other_consts, only: MAX_FILENAME_LEN
@@ -28,8 +29,8 @@ subroutine assemble_sparse_matrices
 
 
 !integer :: nel
-!real(dp) :: B(6,6)
-!real(dp) :: k(:), BB(6*6*nel-CommonFaceNo), C(6)
+    real(dp) :: B(6,6),C(6)
+    real(dp) :: BB(6*6*num_elems-CommonFaceNo)
 !real(dp) :: CC(6*nel)
 !real(dp) :: A(8*6*nel-CommonFaceNo)
 !integer :: IB(6*6*nel-CommonFaceNo), JB(6*6*nel-CommonFaceNo)!, ones(6)
@@ -38,7 +39,7 @@ subroutine assemble_sparse_matrices
 !!real(dp), allocatable :: Ak(:,:)
     integer :: ii,j, I(6), signum(6), DiagSig(6,6)
     integer :: counter, Recount1, Ccounter, commonCount
-!logical :: ok1
+    logical :: ok1
 !character * ( 255 ) :: fileplace, Bmatrix_filename
 
     character(len=60) :: sub_name
@@ -64,8 +65,38 @@ subroutine assemble_sparse_matrices
         endif
       enddo
     DiagSig(:,:) = diag(signum(:),size(signum(:)))
-    !B(:,:) = blood_viscosity/k(j)*matmul(matmul(DiagSig, B_MATRIX(j)%Inside_B),DiagSig)
+    B(:,:) = plug_params%blood_viscosity/elem_field(j,ne_cond)* &
+        matmul(matmul(DiagSig, B_MATRIX(j)%Inside_B),DiagSig)
+    C(:)=matmul(ones(6),diag(signum,size(signum(:))))
+    do ii=1,6
+        do jj =1,6
+            if (B(ii,jj).ne.0 ) then
+                if (counter > 6) then
+                    ok1 = .false.
+                    Recount1=findequal(IB(1:counter),JB(1:counter),I(ii),I(jj),ok1)
 
+                    if ( ok1 ) then
+                        BB(Recount1) = B(ii,jj)+BB(Recount1)
+                    else
+                        counter=counter+1
+                        BB(counter) = B(ii,jj)
+                        IB(counter) = I(ii)
+                        JB(counter) = I(jj)
+                    endif
+                else
+                        counter=counter+1
+                        BB(counter) = B(ii,jj)
+                        IB(counter) = I(ii)
+                        JB(counter) = I(jj)
+                endif
+            endif
+        enddo
+        Ccounter = Ccounter+1
+        CC(Ccounter)= C(ii)
+        IC(Ccounter)=I(ii)
+        JC(Ccounter)=j
+    enddo
+enddo
 
 
     enddo
@@ -152,6 +183,41 @@ subroutine read_e2face(filename,filename_len)
 
     call enter_exit(sub_name,2)
 end subroutine read_e2face
+
+
+!subroutine read_face2e(filename,filename_len)
+!   use arrays, only: num_elems,element2face
+!    use diagnostics, only: enter_exit,get_diagnostics_level
+!    use indices
+!    use other_consts, only: MAX_FILENAME_LEN
+!    implicit none
+!  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_READ_FACE2E" :: READ_FACE2E
+!
+!    character(len=MAX_FILENAME_LEN), intent(in) :: filename !Input nodefile
+!    integer, intent(in) :: filename_len
+!
+!    character(len=MAX_FILENAME_LEN) :: appended_fn
+!    character(len = filename_len) ::trimfilename
+!    integer :: ne
+!
+!    character(len=60) :: sub_name
+!    integer :: diagnostics_level
+!
+!    sub_name = 'read_face2e'
+!    call enter_exit(sub_name,1)
+!    call get_diagnostics_level(diagnostics_level)
+!
+!    trimfilename = filename(1:filename_len)
+!    allocate(face2element(num_elems,6))
+!
+!    call read_integer_array(adjustl(trimfilename),num_elems,6,face2element)
+!
+!    write(*,*) face2element(1,:)
+!    write(*,*) face2element(num_elems,:)
+!
+!
+!    call enter_exit(sub_name,2)
+!end subroutine read_face2e
 
 !
 !#########################################################
@@ -406,6 +472,8 @@ subroutine create_sampling_grid()
 
     call mesh_cylinder_volume
     call cellcount
+    call mesh_node2sample
+
 end subroutine create_sampling_grid
 
 !
@@ -482,6 +550,89 @@ subroutine mesh_cylinder_volume()
 
 end  subroutine
 
+!
+!########################################
+!
+
+subroutine mesh_node2sample()
+    use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_nodes,node_xyz,&
+      elem_3d,num_elems,elem_field
+    use indices, only: ne_cond
+    use other_consts, only:PI
+
+
+    integer :: i,j,k,l,ne
+    integer :: xelem_num,yelem_num,zelem_num,nelem
+    real(dp), allocatable :: node_cond(:),node_cond_sm(:), nelem_node(:)
+
+
+    do i = 1,sampling_grid%nel
+      sampling_elems(i)%mesh_node_cnt = 0
+    enddo
+    allocate(node_cond(num_nodes))
+    allocate(node_cond_sm(num_nodes))
+    allocate(nelem_node(num_nodes))
+    nelem_node = 0.0_dp
+    node_cond_sm = 0.0_dp
+
+    do i=1,num_nodes
+
+      xelem_num = ceiling((node_xyz(i,1) -  sampling_grid%x_min) / sampling_grid%x_width)
+      if(xelem_num.eq.0) xelem_num =1
+      yelem_num = ceiling((node_xyz(i,2) - sampling_grid%y_min) / sampling_grid%y_width)
+      if(yelem_num.eq.0) yelem_num =1
+      zelem_num = ceiling((node_xyz(i,3) - sampling_grid%z_min) / sampling_grid%z_width)
+      if(zelem_num.eq.0) zelem_num =1
+
+      nelem = xelem_num + (yelem_num-1) * (sampling_grid%nel_x) &
+              + (zelem_num-1) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
+      sampling_elems(nelem)%mesh_node_cnt = sampling_elems(nelem)%mesh_node_cnt + 1
+
+      node_cond(i) = sampling_elems(nelem)%k_conduct
+
+      write(*,*) node_cond(i)
+   enddo
+
+   do i = 1,sampling_grid%nel
+      write(*,*) i,sampling_elems(i)%mesh_node_cnt
+   enddo
+
+   do ne = 1,num_elems
+     elem_field(ne,ne_cond) = 0.0_dp
+     do i = 1,8
+       elem_field(ne,ne_cond) = elem_field(ne,ne_cond) + node_cond(elem_3d(ne,i))
+     enddo
+     elem_field(ne,ne_cond)  = elem_field(ne,ne_cond) / 8.0_dp
+
+     !smoothing step
+     !Give back to nodes
+     write(*,*) ne, elem_field(ne,ne_cond)
+     do i =1,8
+       nelem_node(elem_3d(ne,i)) = nelem_node(elem_3d(ne,i)) + 1.0_dp
+       node_cond_sm(elem_3d(ne,i)) = node_cond_sm(elem_3d(ne,i)) + elem_field(ne,ne_cond)
+     enddo
+   enddo
+
+   do i = 1,num_nodes
+     node_cond_sm(i) = node_cond_sm(i)/nelem_node(i)
+   enddo
+   !and back to elems
+   do ne = 1,num_elems
+     elem_field(ne,ne_cond) = 0.0_dp
+     do i = 1,8
+       elem_field(ne,ne_cond) = elem_field(ne,ne_cond) + node_cond_sm(elem_3d(ne,i))
+     enddo
+     elem_field(ne,ne_cond)  = elem_field(ne,ne_cond) / 8.0_dp
+     write(*,*) ne, elem_field(ne,ne_cond)
+   enddo
+
+   deallocate(node_cond)
+   deallocate(nelem_node)
+   deallocate(node_cond_sm)
+end subroutine
+!
+!##################################
+!
 
 subroutine cellcount()
     use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_cells, cell_list,plug_params
@@ -500,7 +651,6 @@ subroutine cellcount()
 
 
     do i=1,num_cells
-
       xelem_real = (cell_list(i)%centre(1,1)- sampling_grid%x_min) / sampling_grid%x_width
       if(xelem_real.eq.nint(xelem_real))then
         xelem_num (1) =ceiling(xelem_real)
@@ -528,8 +678,8 @@ subroutine cellcount()
       do l = 1,2
         do j = 1,2
           do k = 1,2
-            nelem = xelem_num(l) + yelem_num(j) * sampling_grid%nel_x &
-              + zelem_num(k) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
+            nelem = xelem_num(l) + (yelem_num(j)-1) * sampling_grid%nel_x &
+              + (zelem_num(k)-1) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
             sampling_elems(nelem)%cell_cnt = sampling_elems(nelem)%cell_cnt + 1.0_dp/8.0_dp
           enddo
         enddo
@@ -547,6 +697,9 @@ subroutine cellcount()
        sampling_elems(i)%k_conduct = (2.0_dp*plug_params%Raverage)**2.0_dp&
           /180.0_dp*(1.0_dp-sampling_elems(i)%volume_fraction)**3.0_dp &
             /(sampling_elems(i)%volume_fraction**2.0_dp) ! in um^2
+      endif
+      if(sampling_elems(i)%k_conduct.gt.plug_params%k_empty)then
+        sampling_elems(i)%k_conduct = plug_params%k_empty
       endif
       write(*,*) i,sampling_elems(i)%cell_cnt, sampling_elems(i)%volume_fraction,sampling_elems(i)%k_conduct
 
@@ -578,6 +731,18 @@ FUNCTION cross(a, b)
   cross(2) = a(3) * b(1) - a(1) * b(3)
   cross(3) = a(1) * b(2) - a(2) * b(1)
 END FUNCTION cross
+
+!-----------------------------------------------
+!
+!-----------------------------------------------
+function ones(Msize)
+
+integer :: Msize, i, ones(Msize)
+    do i= 1, Msize
+        ones(i) = 1
+    enddo
+!print *, "ones=", ones(:)
+end function
 
 
 end module mix_fem

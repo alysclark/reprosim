@@ -27,6 +27,7 @@ module arrays
   real(dp), allocatable :: node_3d(:,:)
 
   integer, allocatable :: element2face(:,:)
+  integer, allocatable :: face2element(:,:)
 
 
   real(dp),allocatable :: cell_field(:,:,:) !properties of cells
@@ -131,7 +132,8 @@ module arrays
     real(dp) :: ichemo_1
     real(dp) :: inletPressure                ! inlet pressure
     real(dp) :: n_cell_positions             ! number of cell positions to save each time step
-    real(dp) :: k_empty = 0.52_dp
+    real(dp) :: k_empty = 10.0_dp
+    real(dp) :: blood_viscosity = 0.3e-3_dp !PA
     integer :: Nsteps
     integer :: nsteps_per_min
     integer :: istep
@@ -169,6 +171,7 @@ module arrays
     real (dp) :: cylinder_volume
     real(dp) :: cell_cnt
     real(dp) :: k_conduct
+    integer :: mesh_node_cnt
   end type
   type(elem_type), allocatable, target :: sampling_elems(:)
 
@@ -180,7 +183,7 @@ module arrays
     num_cells, num_cell_f, num_nodes, units, num_units, unit_field, node_field, dp, elem_cnct, elem_ordrs, elem_direction, &
     elems_at_node, elem_symmetry, elem_units_below, maxgen, num_arterial_elems,plug_params,B_MATRIX
   public NCTYPES, TROPHO_CELL, MAX_CELLTYPES,cell_stat,neighbour_type,abm_control,all_faces,num_all_faces,element2face
-  public sampling_nodes,sampling_elems,sampling_grid
+  public sampling_nodes,sampling_elems,sampling_grid,face2element
 
 contains
   subroutine set_node_field_value(row, col, value)  

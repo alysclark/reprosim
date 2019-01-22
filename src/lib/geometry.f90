@@ -1496,7 +1496,7 @@ subroutine read_icem_msh(filename)
 end subroutine read_icem_msh
 
 subroutine read_k_file(filename)
-    use arrays,only: dp,node_3d,elem_3d,num_nodes,num_elems
+    use arrays,only: dp,node_3d,elem_3d,num_nodes,num_elems,elem_field
     use diagnostics, only: enter_exit,get_diagnostics_level
     use indices
     use other_consts, only: MAX_FILENAME_LEN
@@ -1581,6 +1581,9 @@ subroutine read_k_file(filename)
     num_elems = I/2
     if(diagnostics_level.gt.1)write(*,*) 'Allocating elems : ', I/2
     allocate(elem_3d(I/2,8)) !nodes associated with elements
+    num_ne = 1
+    ne_cond = 1
+    allocate(elem_field(num_elems,num_ne))
     do ii=1, lineNum
         read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
     enddo
