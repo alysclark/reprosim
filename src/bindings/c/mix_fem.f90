@@ -95,6 +95,21 @@ end subroutine assemble_sparse_matrices_c
 
 !!!###################################################################################
 
+subroutine solve_fem_c() bind(C, name="solve_fem_c")
+
+use mix_fem, only: solve_fem
+implicit none
+
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_solve_fem()
+#else
+call solve_fem()
+#endif
+
+end subroutine solve_fem_c
+
+
 subroutine create_sampling_grid_c() bind(C, name="create_sampling_grid_c")
 
 use mix_fem, only: create_sampling_grid

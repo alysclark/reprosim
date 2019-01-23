@@ -15,7 +15,8 @@ set(LIB_SRCS
   solve.f90
   sparsekit.f90
   mix_fem.f90
-
+  c_fortran_cgssv.c
+  
 )
 
 set(REPROSIM_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Modules")
@@ -44,4 +45,9 @@ set_target_properties(reprosim PROPERTIES
   VISIBILITY_INLINES_HIDDEN 1)
 
 target_include_directories(reprosim PUBLIC "${REPROSIM_MODULE_DIRECTORY}")
+
+message(STATUS "Including directory")
+find_package(superlu CONFIG QUIET)
+target_include_directories(reprosim PUBLIC "/Users/acla148/opencmiss/install/include/superlu")
+target_link_libraries(reprosim PUBLIC superlu)
 
