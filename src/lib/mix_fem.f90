@@ -15,6 +15,7 @@ module mix_fem
   public read_face2e
   public create_sampling_grid
   public compute_body_forces
+  public solve_fem
 contains
 
 !
@@ -936,12 +937,13 @@ subroutine solve_fem
     implicit none
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SOLVE_FEM" :: READ_SOLVE_FEM
 
-    integer :: count1,i,j,k,n,sizeFFace,rowcount,columncount
+    integer :: count1,i,j,k,n,sizeFFace,rowcount,columncount,p
+    real(dp) :: t1,t2
 
 
     integer, allocatable :: Ap_save(:), Ai_save(:), NewIA(:), NewJA(:),row_ind(:), col_ptr(:)
     integer, allocatable :: jao(:),iao(:)
-    real(dp), allocatable :: Ax_save(:),newBForce(:), newQP(:),newA(:),ao(:),acsc(:)
+    real(dp), allocatable :: Ax_save(:),newBForce(:), newQP(:),newA(:),ao(:),acsc(:),solution(:),residual(:)
 
     character(len=60) :: sub_name
     integer :: diagnostics_level
@@ -963,7 +965,9 @@ subroutine solve_fem
       enddo
   enddo
   n = count1
+
   sizeFFace = size(feFreeFaces)
+   write(*,*) n,sizeFFace
   allocate(Ap_save(sizeFFace+1))
   allocate(Ai_save(n))
   allocate(Ax_save(n))
@@ -978,6 +982,8 @@ subroutine solve_fem
   allocate(acsc(n))
   allocate(row_ind(n))
   allocate(col_ptr(n))
+  allocate(solution(sizeFFace))
+  allocate(residual(sizeFFace))
 
   count1 = 0
   rowcount=0
@@ -1007,58 +1013,57 @@ subroutine solve_fem
     call rearrange_cr (sizeFFace, iao, jao, ao )
 
     call csrcsc (sizeFFace, 1, 1, ao, jao, iao, acsc, row_ind, col_ptr )
-!!call logger('Done csrcsc')
-!!write (*,*) "nz",size(NEWA(:))
-!!do i=1,size(NEWA(:))
-! !   write (out_unit,*) acsc(i)
-!!enddo
-!!----------------------------------------------------------------
-!! convert from 1-based to 0-based
-!!----------------------------------------------------------------
-!do j = 1, sizeFFace+1
-!    col_ptr(j) = col_ptr(j) - 1
-!enddo
-!do p = 1, size(NEWA(:))
-!    row_ind(p) = row_ind(p) - 1
-!enddo
-!!========== start umf solver=============================
-!!isolve_mode = SOLVE_NO_ITERATION
-!!call cpu_time(t1)
-!!call solve_umf(isolve_mode, sizeFFace, col_ptr, row_ind, acsc, newBForce, solution)
-!!call cpu_time(t2)
-!!write(*,'(a,f8.1)') 'Solve time (sec): ',t2-t1
-!
-!
-!!! print the residual.
-!!call resid (sizeFFace, col_ptr, row_ind, acsc,  solution, newBForce, residual)
-!!========== end umf solver=============================
-!
-!
-!!========== start slu solver=============================
-!solution= newBForce
-!Ap_save = col_ptr
-!Ai_save = row_ind
-!Ax_save = acsc
-!call cpu_time(t1)
-!!!write(*,*) 'call slu_solve: n,nz: ',n,nz
-!!!write(*,*)
-!call slu_solve(4, sizeFFace, size(NEWA(:)), acsc, row_ind, col_ptr, solution);
-!!!UMF call solve(isolve_mode, n, Ap, Ai, Ax, b, x)
-!call cpu_time(t2)
-!write(*,*)
-!write(*,'(a,f8.1)') 'Solve time (cpu_time/nprocs) (sec): ',(t2-t1)/4
+
+    !----------------------------------------------------------------
+    ! convert from 1-based to 0-based
+    !----------------------------------------------------------------
+    do j = 1, sizeFFace+1
+        col_ptr(j) = col_ptr(j) - 1
+    enddo
+    do p = 1, size(NEWA(:))
+        row_ind(p) = row_ind(p) - 1
+    enddo
+
+
+     !========== start slu solver=============================
+     solution= newBForce
+     Ap_save = col_ptr
+     Ai_save = row_ind
+     Ax_save = acsc
+     call cpu_time(t1)
+
+    call c_fortran_cgssv(4, sizeFFace, size(NEWA(:)), acsc, row_ind, col_ptr, solution);
+
+    write(*,'(a,f8.1)') 'Solve time (cpu_time/nprocs) (sec): ',(t2-t1)/4
 !
 !!! print the residual.
-!write(*,*) 'After solve, residual:'
-!call resid (sizeFFace, Ap_save, Ai_save, Ax_save, solution, newBForce, residual)
+    write(*,*) 'After solve, residual:'
+    call resid (sizeFFace, Ap_save, Ai_save, Ax_save, solution, newBForce, residual)
 !!========== end slu solver=============================
 !
-!   newQP = solution
+    newQP = solution
     !map back to soln array
 
     do i = 1, sizeFFace
         feQ_P(feFreeFaces(i))= newQP(i)
     enddo
+
+  deallocate(Ap_save)
+  deallocate(Ai_save)
+  deallocate(Ax_save)
+  deallocate(NewIA)
+  deallocate(newJA)
+  deallocate(newBForce)
+  deallocate( newQP)
+  deallocate(newA)
+  deallocate(ao)
+  deallocate(jao)
+  deallocate(iao)
+  deallocate(acsc)
+  deallocate(row_ind)
+  deallocate(col_ptr)
+  deallocate(solution)
+  deallocate(residual)
 
     call enter_exit(sub_name,2)
 end subroutine solve_fem
@@ -1295,6 +1300,31 @@ end subroutine
 
     return
  end subroutine rearrange_cr
+
+ !== resid ==============================================================
+! Compute the residual, r = Ax-b, its max-norm, and print the max-norm
+! Note that A is zero-based.
+!=======================================================================
+subroutine resid (n, Ap, Ai, Ax, x, b, r)
+  integer :: n, Ap(:), Ai(:), j, i, p
+  double precision :: Ax(:), x(:), b(:), r(:), rmax, aij
+
+  r(1:n) = -b(1:n)
+
+  do j = 1,n
+    do p = Ap(j) + 1, Ap(j+1)
+        i = Ai(p) + 1
+        aij = Ax(p)
+        r(i) = r(i) + aij * x(j)
+    enddo
+  enddo
+  rmax = 0
+  do i = 1, n
+    rmax = max(rmax, r(i))
+  enddo
+
+  write(*,*) 'norm (A*x-b): ', rmax
+end subroutine
 
 
 end module mix_fem

@@ -6,6 +6,7 @@ void read_e2face_c(const char *filename,  int *filename_len);
 void assemble_sparse_matrices_c();
 void create_sampling_grid_c();
 void compute_body_forces_c(double *inletPressure, double *outletPressure);
+void solve_fem();
 
 
 void read_b_matrix(const char *filename)
@@ -43,3 +44,8 @@ void compute_body_forces(double inletPressure, double outletPressure)
     compute_body_forces_c(&inletPressure, &outletPressure);
 }
 
+
+void solve_fem()
+{
+    solve_fem_c();
+}

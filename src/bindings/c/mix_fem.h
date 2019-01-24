@@ -9,6 +9,7 @@ SHO_PUBLIC void read_face2e(const char *filename);
 SHO_PUBLIC void assemble_sparse_matrices();
 SHO_PUBLIC void create_sampling_grid();
 SHO_PUBLIC void compute_body_forces(double inletPressure, double outletPressure);
+SHO_PUBLIC void solve_fem();
 
 
 #endif /* AETHER_MIX_FEM_H */
