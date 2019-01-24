@@ -180,6 +180,7 @@ module arrays
     real (dp) :: cylinder_volume
     real(dp) :: cell_cnt
     real(dp) :: k_conduct
+    real(dp) :: porosity
     integer :: mesh_node_cnt
   end type
   type(elem_type), allocatable, target :: sampling_elems(:)

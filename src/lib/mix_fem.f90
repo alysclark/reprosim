@@ -524,7 +524,7 @@ subroutine create_sampling_grid()
 
     call mesh_cylinder_volume
     call cellcount
-    call mesh_node2sample
+    call sample_2_refined_sample
 
 end subroutine create_sampling_grid
 
@@ -612,6 +612,94 @@ end  subroutine
 !
 !########################################
 !
+
+subroutine sample_2_refined_sample()
+    use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_nodes,node_xyz,&
+      elem_3d,num_elems,elem_field
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    use indices, only: ne_cond
+    use other_consts, only:PI
+
+
+    integer :: i,j,k,l,ne
+    integer :: xelem_num,yelem_num,zelem_num,nelem,counter
+    real(dp) :: x,y,z,site(3)
+    integer :: nsd,nel_z,nel_y,nel_x,nel,nnp,nen,ndof,neq
+    real(dp) :: x_min, x_max, y_min,y_max,z_min,z_max,x_width,y_width,z_width, volume
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+    real(dp), allocatable :: sampling_nodes2(:,:)
+
+    sub_name = 'sample_2_refined_sample'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    nsd  = 3                             ! number of space dimensions
+    nel_z = 40                       ! number of elements on z axis
+    nel_y = 16                       ! number of elements on y axis
+    nel_x = 16                      ! number of elements on x axis
+    nel  = nel_y*nel_x*nel_z                 ! number of elements
+    nnp  = (nel_z+1)*(nel_y+1)*(nel_x+1)     ! number of nodal nodes
+    nen  = 8                             ! number of element nodes
+    ndof = 1                            ! degrees-of-freedom per node
+    neq  = nnp*ndof                ! number of equations
+    x_min = -200.0_dp             !min x coordinates - in mm
+    x_max = 200.0_dp          !max x coordinates - in mm
+    y_min = -200.0_dp             !min y coordinates - in mm
+    y_max = 200.0_dp            !max y coordinates - in mm
+    z_min = 0             !min z coordinates - in mm
+    z_max = 1000            !max z coordinates - in mm
+    x_width = (x_max-x_min)/nel_x
+    y_width = (y_max-y_min)/nel_y
+    z_width = (z_max-z_min)/nel_z
+    volume = x_width*y_width*z_width
+
+    counter=0
+    allocate(sampling_nodes2(nnp,5))
+
+    do k= 0,nel_z
+        z=(z_max - z_min)/nel_z*k + z_min
+        do j= 0,nel_y
+            y=(y_max - y_min)/nel_y*j + y_min
+            do i= 0,nel_x
+                x=(x_max - x_min)/nel_x*i + x_min
+                counter=counter+1
+                site=(/x,y,z/)
+
+                sampling_nodes2(counter,1:3)=site
+
+                print *, "Coordinates!=", counter, nnp, site
+            enddo
+        enddo
+    enddo
+    open(10, file='new_sample.txt', status='replace')
+    do i=1,counter
+
+      xelem_num = ceiling((sampling_nodes2(i,1) -  sampling_grid%x_min) / sampling_grid%x_width)
+      if(xelem_num.eq.0) xelem_num =1
+      yelem_num = ceiling((sampling_nodes2(i,2) - sampling_grid%y_min) / sampling_grid%y_width)
+      if(yelem_num.eq.0) yelem_num =1
+      zelem_num = ceiling((sampling_nodes2(i,3) - sampling_grid%z_min) / sampling_grid%z_width)
+      if(zelem_num.eq.0) zelem_num =1
+
+      nelem = xelem_num + (yelem_num-1) * (sampling_grid%nel_x) &
+              + (zelem_num-1) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
+
+      sampling_nodes2(i,4) = sampling_elems(nelem)%k_conduct
+      sampling_nodes2(i,5) = sampling_elems(nelem)%porosity
+
+      if(diagnostics_level.gt.1)write(*,*) sampling_nodes2(i,4)
+      write(10,*) sampling_nodes2(i,:)
+   enddo
+   close(10)
+
+
+   deallocate(sampling_nodes2)
+end subroutine
+!
+!
+
+
 
 subroutine mesh_node2sample()
     use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_nodes,node_xyz,&
@@ -761,10 +849,13 @@ subroutine cellcount()
    do i = 1,sampling_grid%nel
       sampling_elems(i)%volume_fraction = sampling_elems(i)%cell_cnt*4.0_dp*PI*plug_params%Raverage**3.0_dp&
         /(sampling_elems(i)%cylinder_volume*sampling_grid%volume*3.0_dp)
+
+
       if(sampling_elems(i)%volume_fraction.gt.1.0_dp)then
         sampling_elems(i)%volume_fraction = 0.98
       endif
       if(sampling_elems(i)%volume_fraction.eq.0.0_dp)then
+        sampling_elems(i)%volume_fraction = 0.92
         sampling_elems(i)%k_conduct = plug_params%k_empty
       else
        sampling_elems(i)%k_conduct = (2.0_dp*plug_params%Raverage)**2.0_dp&
@@ -774,6 +865,7 @@ subroutine cellcount()
       if(sampling_elems(i)%k_conduct.gt.plug_params%k_empty)then
         sampling_elems(i)%k_conduct = plug_params%k_empty
       endif
+      sampling_elems(i)%porosity = 1.0 - sampling_elems(i)%volume_fraction
       if(diagnostics_level.gt.1)then
         write(*,*) i,sampling_elems(i)%cell_cnt, sampling_elems(i)%volume_fraction,sampling_elems(i)%k_conduct
       endif
