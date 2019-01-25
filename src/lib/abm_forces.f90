@@ -40,7 +40,8 @@ subroutine calc_random_forces(cell_population, force_field, force_magnitude)
     
     do kcell = 1,num_cells
       cell_field(kcell, force_field, :) = 0.0_dp
-      if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
+      if (cell_list(kcell)%state == cell_stat%ALIVE)then
         if(diagnostics_level.gt.1)then
           write(*,*) kcell
           write(*,*) cell_list(kcell)%ctype
@@ -82,6 +83,7 @@ subroutine calc_saghian_chemo_forces(cell_population,force_field,fradial,cradial
     
     do kcell = 1,num_cells
       cell_field(kcell, force_field, :) = 0.0_dp
+      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
         if(diagnostics_level.gt.1)then
           write(*,*) kcell
@@ -94,14 +96,14 @@ subroutine calc_saghian_chemo_forces(cell_population,force_field,fradial,cradial
         if (theta.lt.0.0_dp) then
             theta=theta+2*PI
         endif
-    
+
         cell_field(kcell, force_field, :) = faxial *[0, 0, 1]*d*EXP(caxial*r) + &
             fradial *[1, 0, 0]*r*cos(theta)*exp(cradial*r) + &
             fradial *[0, 1, 0]*r*sin(theta)*exp(cradial*r)
         if(diagnostics_level.gt.1)then
           write(*,*) cell_field(kcell, force_field, :)
         endif
-      endif 
+      endif
     enddo
 
     call enter_exit(sub_name,2)
@@ -137,28 +139,32 @@ subroutine calc_saghian_cell_cell(cell_population,force_field,r0,r1,a,b)
 
     do kcell = 1,num_cells
      cell_field(kcell, force_field, :) = 0.0_dp
-     do knbr = 1,cell_list(kcell)%nbrs
-       nbridx = cell_list(kcell)%nbrlist(knbr)%indx
-       Fdir =cell_list(nbridx)%centre(:,1)-cell_list(kcell)%centre(:,1)
-       unitFdir = -1.0_dp*unit_vector(Fdir)
-       rad1 = cell_list(kcell)%radius(1)
-       rad2 = cell_list(nbridx)%radius(1)
-       x= cell_list(kcell)%nbrlist(knbr)%distance/(rad1+rad2)
-       if (x > xcross) then
-         F = 0.0_dp
-       elseif (x < r0) then ! should not happen with adaptive time stepping
-         write(*,*) 'Error: get cell force: x < x0: ',x,r0,cell_list(kcell)%nbrlist(knbr)%distance,rad1,rad2,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
-         F = 0.0_dp
-       else
-         F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
-       endif
+     if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
+     if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+         do knbr = 1,cell_list(kcell)%nbrs
+           nbridx = cell_list(kcell)%nbrlist(knbr)%indx
+           Fdir =cell_list(nbridx)%centre(:,1)-cell_list(kcell)%centre(:,1)
+           unitFdir = -1.0_dp*unit_vector(Fdir)
+           rad1 = cell_list(kcell)%radius(1)
+           rad2 = cell_list(nbridx)%radius(1)
+           x= cell_list(kcell)%nbrlist(knbr)%distance/(rad1+rad2)
+           if (x > xcross) then
+             F = 0.0_dp
+           elseif (x < r0) then ! should not happen with adaptive time stepping
+             write(*,*) 'Error: get cell force: x < x0: ',x,r0,cell_list(kcell)%nbrlist(knbr)%distance,&
+               rad1,rad2,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
+             F = 0.0_dp
+           else
+             F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
+           endif
 
-       cell_field(kcell, force_field, :) = cell_field(kcell, force_field, :) + F*unitFdir
+           cell_field(kcell, force_field, :) = cell_field(kcell, force_field, :) + F*unitFdir
 
-     enddo
-     if(diagnostics_level.gt.1)then
-       write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
-     endif
+         enddo
+         if(diagnostics_level.gt.1)then
+           write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
+         endif
+      endif
     enddo
 
     call enter_exit(sub_name,2)
@@ -194,25 +200,29 @@ subroutine calc_saghian_cell_wall(cell_population,force_field,r0,r1,a,b)
 
     do kcell = 1,num_cells
        cell_field(kcell, force_field, :) = 0.0_dp
-       unitFdir = -1.0* cell_list(kcell)%wall_dir
-       x= cell_list(kcell)%wall_distance/cell_list(kcell)%radius(1)
-       if (x > xcross) then
-         F = 0.0_dp
-       elseif (x < r0) then ! should not happen with adaptive time stepping
-         write(*,*) 'Error: get wall force: x < x0: ',x,cell_list(kcell)%wall_distance, &
-         cell_list(kcell)%wall_dir,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
-         F = 0.0_dp
-       else
-         F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
+       if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
+       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+           unitFdir = -1.0* cell_list(kcell)%wall_dir
+           x= cell_list(kcell)%wall_distance/cell_list(kcell)%radius(1)
+           if (x > xcross) then
+             F = 0.0_dp
+           elseif (x < r0) then ! should not happen with adaptive time stepping
+             write(*,*) 'Error: get wall force: x < x0: ',&
+               x,cell_list(kcell)%wall_distance, &
+               cell_list(kcell)%wall_dir,abm_control%delta_max!,R1,R2,d,x,x0_force,' incontact: ',incontact
+             F = 0.0_dp
+           else
+             F = a/((x-r0)*(r1-x)) -b - 4.0_dp*a/dx**2.0_dp
+           endif
+
+
+           cell_field(kcell, force_field, :) =  F*unitFdir
+
+
+         if(diagnostics_level.gt.1)then
+           write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
+         endif
        endif
-
-
-       cell_field(kcell, force_field, :) =  F*unitFdir
-
-
-     if(diagnostics_level.gt.1)then
-       write(*,*) kcell,cell_field(kcell, force_field, :),rad1,rad2,x
-     endif
     enddo
 
     call enter_exit(sub_name,2)
@@ -241,6 +251,7 @@ subroutine calc_saghian_velocity_force(cell_population, force_field, force_magni
 
     do kcell = 1,num_cells
       cell_field(kcell, force_field, :) = 0.0_dp
+      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
         if(diagnostics_level.gt.1)then
           write(*,*) kcell

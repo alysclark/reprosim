@@ -611,9 +611,16 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     max_force = -1.0e6_dp
     do kcell = 1, num_cells
       do kforce = 1,num_cell_f
-        force(kcell,:) = force(kcell,:) + cell_field(kcell,kforce,:)
-        if (diagnostics_level.gt.1)then
-          write(*,*) kforce, vector_length(cell_field(kcell,kforce,:))
+        if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) then
+          force(kcell,:) = 0.0_dp
+        endif
+        if (cell_list(kcell)%state == cell_stat%ALIVE)then
+          force(kcell,:) = force(kcell,:) + cell_field(kcell,kforce,:)
+          if (diagnostics_level.gt.1)then
+            write(*,*) kforce, vector_length(cell_field(kcell,kforce,:))
+          endif
+        else
+          force(kcell,:) = 0.0_dp
         endif
       enddo
       force_mag =vector_length(force(kcell,:))

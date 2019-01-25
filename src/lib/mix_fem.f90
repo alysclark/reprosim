@@ -16,6 +16,7 @@ module mix_fem
   public create_sampling_grid
   public compute_body_forces
   public define_velocity_at_cell
+  public resample_grid
 contains
 
 !
@@ -481,7 +482,7 @@ subroutine create_sampling_grid()
     sampling_grid%volume = sampling_grid%x_width*sampling_grid%y_width*sampling_grid%z_width
 
     counter=0
-    allocate(sampling_nodes(sampling_grid%nnp))
+    if(.not.allocated(sampling_nodes))allocate(sampling_nodes(sampling_grid%nnp))
 
     do k= 0,sampling_grid%nel_z
         z=(sampling_grid%z_max - sampling_grid%z_min)/sampling_grid%nel_z*k + sampling_grid%z_min
@@ -501,7 +502,7 @@ subroutine create_sampling_grid()
     enddo
 
     if(diagnostics_level.gt.1)write(*,*) 'finished with the nodes'
-    allocate(sampling_elems(sampling_grid%nel))
+    if(.not.allocated(sampling_elems))allocate(sampling_elems(sampling_grid%nel))
     ElCount=0
     do k =  1,sampling_grid%nel_z
         do j = 1,sampling_grid%nel_y
@@ -531,6 +532,19 @@ subroutine create_sampling_grid()
     call sample_2_refined_sample
 
 end subroutine create_sampling_grid
+!
+!#######################################
+!
+subroutine resample_grid()
+
+  use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems
+  use diagnostics, only: enter_exit,get_diagnostics_level
+
+    call cellcount
+    call sample_2_refined_sample
+
+end subroutine resample_grid
+
 
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -659,7 +673,7 @@ subroutine sample_2_refined_sample()
     volume = x_width*y_width*z_width
 
     counter=0
-    allocate(sampling_nodes2(nnp,5))
+    if(.not.allocated(sampling_nodes2))allocate(sampling_nodes2(nnp,5))
 
     do k= 0,nel_z
         z=(z_max - z_min)/nel_z*k + z_min
@@ -794,7 +808,8 @@ end subroutine
 !
 
 subroutine cellcount()
-    use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_cells, cell_list,plug_params
+    use arrays, only: dp,sampling_grid,sampling_nodes,sampling_elems,num_cells, &
+      cell_list,cell_stat,plug_params
     use diagnostics, only: enter_exit,get_diagnostics_level
     use other_consts, only:PI
 
@@ -815,45 +830,54 @@ subroutine cellcount()
       sampling_elems(i)%cell_cnt = 0.0_dp
     enddo
 
-
     do i=1,num_cells
-      xelem_real = (cell_list(i)%centre(1,1)- sampling_grid%x_min) / sampling_grid%x_width
-      if(xelem_real.eq.nint(xelem_real))then
-        xelem_num (1) =ceiling(xelem_real)
-        xelem_num(2) = xelem_num(1)-1
-      else
-        xelem_num (1:2) = ceiling(xelem_real)
-      endif
+      if (cell_list(i)%state == cell_stat%GONE_BACK .or. cell_list(i)%state == cell_stat%GONE_THROUGH) cycle
+      if (cell_list(i)%state == cell_stat%ALIVE)then
+        xelem_real = (cell_list(i)%centre(1,1)- sampling_grid%x_min) / sampling_grid%x_width
+        if(xelem_real.eq.nint(xelem_real))then
+          xelem_num (1) =ceiling(xelem_real)
+          xelem_num(2) = xelem_num(1)-1
+        else
+          xelem_num (1:2) = ceiling(xelem_real)
+        endif
 
-      yelem_real = ((cell_list(i)%centre(2,1) - sampling_grid%y_min) / sampling_grid%y_width)
-      if(yelem_real.eq.nint(yelem_real))then
-        yelem_num (1) =ceiling(yelem_real)
-        yelem_num(2) = yelem_num(1)-1
-      else
-        yelem_num (1:2) = ceiling(yelem_real)
-      endif
+        yelem_real = ((cell_list(i)%centre(2,1) - sampling_grid%y_min) / sampling_grid%y_width)
+        if(yelem_real.eq.nint(yelem_real))then
+          yelem_num (1) =ceiling(yelem_real)
+          yelem_num(2) = yelem_num(1)-1
+        else
+          yelem_num (1:2) = ceiling(yelem_real)
+        endif
 
-      zelem_real = ((cell_list(i)%centre(3,1) - sampling_grid%z_min) / sampling_grid%z_width)
-      if(zelem_real.eq.nint(zelem_real))then
-        zelem_num (1) =ceiling(zelem_real)
-        zelem_num(2) = zelem_num(1)-1
-      else
-        zelem_num (1:2) = ceiling(zelem_real)
-      endif
+        zelem_real = ((cell_list(i)%centre(3,1) - sampling_grid%z_min) / sampling_grid%z_width)
+        if(zelem_real.eq.nint(zelem_real))then
+          zelem_num (1) =ceiling(zelem_real)
+          zelem_num(2) = zelem_num(1)-1
+        else
+          zelem_num (1:2) = ceiling(zelem_real)
+        endif
+        !all entries should be one or greater, if a cell is right at the edge the above can fail so this is a failsafe correction
+        do l = 1,2
+          if(xelem_num(l).eq.0) xelem_num(l) = 1
+          if(yelem_num(l).eq.0) yelem_num(l) = 1
+          if(zelem_num(l).eq.0) zelem_num(l) = 1
+        enddo
 
-      do l = 1,2
-        do j = 1,2
-          do k = 1,2
-            nelem = xelem_num(l) + (yelem_num(j)-1) * sampling_grid%nel_x &
-              + (zelem_num(k)-1) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
-            sampling_elems(nelem)%cell_cnt = sampling_elems(nelem)%cell_cnt + 1.0_dp/8.0_dp
+
+        do l = 1,2
+          do j = 1,2
+            do k = 1,2
+              nelem = xelem_num(l) + (yelem_num(j)-1) * sampling_grid%nel_x &
+                + (zelem_num(k)-1) * (sampling_grid%nel_x * sampling_grid%nel_y)  ! this is the element where the point/node located
+              sampling_elems(nelem)%cell_cnt = sampling_elems(nelem)%cell_cnt + 1.0_dp/8.0_dp
+            enddo
           enddo
         enddo
-      enddo
+      endif !cells alive and in geom
    end do
    do i = 1,sampling_grid%nel
       sampling_elems(i)%volume_fraction = sampling_elems(i)%cell_cnt*4.0_dp*PI*plug_params%Raverage**3.0_dp&
-        /(sampling_elems(i)%cylinder_volume*sampling_grid%volume*3.0_dp)
+          /(sampling_elems(i)%cylinder_volume*sampling_grid%volume*3.0_dp)
 
 
       if(sampling_elems(i)%volume_fraction.gt.1.0_dp)then

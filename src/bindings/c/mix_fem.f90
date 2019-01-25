@@ -109,6 +109,20 @@ call create_sampling_grid()
 
 end subroutine create_sampling_grid_c
 
+subroutine resample_grid_c() bind(C, name="resample_grid_c")
+
+use mix_fem, only: resample_grid
+implicit none
+
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_resample_grid()
+#else
+call resample_grid()
+#endif
+
+end subroutine resample_grid_c
+
 subroutine compute_body_forces_c(inletPressure,outletPressure) bind(C, name="compute_body_forces_c")
 use arrays, only: dp
 use mix_fem, only: compute_body_forces
