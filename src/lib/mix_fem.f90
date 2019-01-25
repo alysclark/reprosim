@@ -15,6 +15,7 @@ module mix_fem
   public read_face2e
   public create_sampling_grid
   public compute_body_forces
+  public define_velocity_at_cell
 contains
 
 !
@@ -492,8 +493,9 @@ subroutine create_sampling_grid()
                 site=(/x,y,z/)
                 sampling_nodes(counter)%ID = counter
                 sampling_nodes(counter)%coordinates=site
-
+                if(diagnostics_level.gt.1)then
                 print *, "Coordinates!=", counter, sampling_grid%nnp, site
+                endif
             enddo
         enddo
     enddo
@@ -517,7 +519,9 @@ subroutine create_sampling_grid()
                 NodeNo=(/EN1, EN2, EN3, EN4, EN5, EN6, EN7, EN8/)
                 sampling_elems(ElCount)%ID = ElCount
                 sampling_elems(ElCount)%nodes= NodeNo
+                if(diagnostics_level.gt.1)then
                 print *, "elements Node Numbers!=", sampling_elems(ElCount)%nodes
+                endif
             enddo
         enddo
     enddo
@@ -667,8 +671,9 @@ subroutine sample_2_refined_sample()
                 site=(/x,y,z/)
 
                 sampling_nodes2(counter,1:3)=site
-
+                if(diagnostics_level.gt.1)then
                 print *, "Coordinates!=", counter, nnp, site
+                endif
             enddo
         enddo
     enddo
@@ -855,7 +860,7 @@ subroutine cellcount()
         sampling_elems(i)%volume_fraction = 0.98
       endif
       if(sampling_elems(i)%volume_fraction.eq.0.0_dp)then
-        sampling_elems(i)%volume_fraction = 0.92
+        sampling_elems(i)%volume_fraction = 0.02
         sampling_elems(i)%k_conduct = plug_params%k_empty
       else
        sampling_elems(i)%k_conduct = (2.0_dp*plug_params%Raverage)**2.0_dp&
@@ -871,6 +876,19 @@ subroutine cellcount()
       endif
    enddo
 end subroutine
+
+subroutine define_velocity_at_cell(ccount,velocity_at_cell,ijk)
+    use arrays, only: num_cells, cell_list
+    use diagnostics, only: enter_exit,get_diagnostics_level
+
+    integer, intent(in) :: ccount,ijk
+    real(dp), intent(in) :: velocity_at_cell
+    !add a check that cell count is the same as num_cells
+    integer :: kcell
+
+    cell_list(ccount)%velocity(ijk,1) = velocity_at_cell
+
+end subroutine define_velocity_at_cell
 
 !
 !#######################################
@@ -1295,6 +1313,7 @@ end subroutine
 
     return
  end subroutine rearrange_cr
+
 
 
 end module mix_fem

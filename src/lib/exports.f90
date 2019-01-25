@@ -316,7 +316,7 @@ end subroutine export_cell_location
 
 !!! ###########################################################
 
-subroutine export_cell_plug(filename,cell_population,cur_time)
+subroutine export_cell_plug(filename,cell_population,cur_time,velocity,flow_rate)
     use arrays,only: dp,num_cells,cell_list,cell_stat
     use math_utilities, only: vector_length
     use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
@@ -326,7 +326,7 @@ subroutine export_cell_plug(filename,cell_population,cur_time)
 !!! Parameters
     character(len=MAX_FILENAME_LEN),intent(in) :: filename
     integer, intent(in) :: cell_population
-    real(dp), intent(in) :: cur_time
+    real(dp), intent(in) :: cur_time,velocity,flow_rate
 
     integer :: kcell, count_cell_exit,cell_count_close_wall,cell_count_far_wall
     real(dp) :: vect_to_tn(3), vect_to_t0(3), dist_to_tn(num_cells),dist_to_t0(num_cells)
@@ -422,10 +422,10 @@ subroutine export_cell_plug(filename,cell_population,cur_time)
     std_disp_cl_wall_t0 = sqrt(std_disp_cl_wall_t0)
     std_disp_fr_wall_t0 = sqrt(std_disp_fr_wall_t0)
 
-    write(20,'(F12.6, X, 3(I12,X),12(F12.6))') cur_time,count_cell_exit,cell_count_close_wall, cell_count_far_wall,&
+    write(20,'(F12.6, X, 3(I12,X),14(F12.6))') cur_time,count_cell_exit,cell_count_close_wall, cell_count_far_wall,&
       mean_disp_cl_wall,mean_disp_fr_wall,mean_disp, mean_disp_cl_wall_t0,mean_disp_fr_wall_t0,&
       mean_disp_t0, std_disp_cl_wall,std_disp_fr_wall,std_disp, std_disp_cl_wall_t0,std_disp_fr_wall_t0,&
-      std_disp_t0
+      std_disp_t0,velocity,flow_rate
     close(20)
 end subroutine export_cell_plug
 

@@ -125,4 +125,22 @@ call compute_body_forces(inletPressure,outletPressure)
 end subroutine compute_body_forces_c
 
 
+
+subroutine define_velocity_at_cell_c(ccount,velocity_at_cell,ijk) bind(C, name="define_velocity_at_cell_c")
+use arrays, only: dp
+use mix_fem, only: define_velocity_at_cell
+implicit none
+integer, intent(in) :: ccount,ijk
+real(dp), intent(in):: velocity_at_cell
+
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_define_velocity_at_cell(ccount,velocity_at_cell,ijk)
+#else
+call define_velocity_at_cell(ccount,velocity_at_cell,ijk)
+#endif
+
+end subroutine define_velocity_at_cell_c
+
+
 end module mix_fem_c

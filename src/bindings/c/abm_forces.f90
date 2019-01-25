@@ -81,4 +81,26 @@ end subroutine calc_random_forces_c
 
   end subroutine calc_saghian_cell_wall_c
 
+!!!###################################################################################
+
+subroutine calc_saghian_velocity_force_c(cell_population, force_field, force_magnitude)&
+    bind(C, name="calc_saghian_velocity_force_c")
+use arrays, only: dp
+use abm_forces, only: calc_saghian_velocity_force
+implicit none
+
+integer,intent(in) :: cell_population
+integer, intent(in) :: force_field
+real(dp), intent(in) :: force_magnitude
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+call so_calc_saghian_velocity_force(cell_population, force_field, force_magnitude)
+#else
+call calc_saghian_velocity_force(cell_population, force_field, force_magnitude)
+#endif
+
+end subroutine calc_saghian_velocity_force_c
+
 end module abm_forces_c
+
+

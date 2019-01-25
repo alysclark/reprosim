@@ -12,7 +12,7 @@ void export_node_field_c(int *nj_field, const char *EXNODEFIELD, int *EXNODEFIEL
 void export_terminal_perfusion_c(const char *EXNODEFILE, int *EXNODEFILE_LEN, const char *name, int *name_len);
 void export_node_geometry_c(const char *EXNODEFILE, int *EXNODEFILE_LEN, const char *name, int *name_len);
 void export_cell_location_c(const char *filename,int *FILENAME_LEN, int *cell_population);
-void export_export_cell_plug_c(const char *filename,int *FILENAME_LEN, int *cell_population, double *cur_time);
+void export_export_cell_plug_c(const char *filename,int *FILENAME_LEN, int *cell_population, double *cur_time, double *velocity, double *flow_rate);
 void export_cell_exnode_c(const char *filename,int *FILENAME_LEN, int *cell_population);
 
 void export_1d_elem_field(int ne_field, const char *EXELEMFILE, const char *group_name, const char *field_name )
@@ -64,11 +64,11 @@ void export_cell_location(const char *filename, int cell_population)
   export_cell_location_c(filename, &filename_len, &cell_population);
 }
 
-void export_cell_plug(const char *filename, int cell_population, double cur_time)
+void export_cell_plug(const char *filename, int cell_population, double cur_time, double velocity, double flow_rate)
 {
   int filename_len = strlen(filename);
 
-  export_cell_plug_c(filename, &filename_len, &cell_population, &cur_time);
+  export_cell_plug_c(filename, &filename_len, &cell_population, &cur_time, &velocity, &flow_rate);
 }
 
 

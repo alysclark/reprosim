@@ -165,7 +165,8 @@ contains
 
 !!!##########################################################################
 
-  subroutine export_cell_plug_c(filename, filename_len, cell_population, cur_time) bind(C, name="export_cell_plug_c")
+  subroutine export_cell_plug_c(filename, filename_len, cell_population, cur_time,velocity,flow_rate) &
+      bind(C, name="export_cell_plug_c")
 
     use iso_c_binding, only: c_ptr
     use utils_c, only: strncpy
@@ -178,14 +179,14 @@ contains
     type(c_ptr), value, intent(in) :: filename
     integer, intent(in) :: cell_population
     character(len=MAX_FILENAME_LEN) :: filename_f
-    real(dp) :: cur_time
+    real(dp) :: cur_time,velocity, flow_rate
 
     call strncpy(filename_f, filename, filename_len)
 
 #if defined _WIN32 && defined __INTEL_COMPILER
-    call so_export_cell_plug(filename_f, cell_population,cur_time)
+    call so_export_cell_plug(filename_f, cell_population,cur_time,velocity,flow_rate)
 #else
-    call export_cell_plug(filename_f, cell_population,cur_time)
+    call export_cell_plug(filename_f, cell_population,cur_time,velocity,flow_rate)
 #endif
 
   end subroutine export_cell_plug_c

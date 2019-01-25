@@ -71,6 +71,7 @@ module arrays
     real(dp) :: mitosis      ! level of mitosis (0 - 1)
     real(dp) :: V_divide
     real(dp) :: d_divide     ! centre separation distance at the end of mitosis
+    real(dp) :: velocity(3,2)
     integer :: step
     integer :: tag
     integer(2) :: ctype

@@ -13,6 +13,7 @@ module abm_forces
   public calc_saghian_chemo_forces
   public calc_saghian_cell_cell
   public calc_saghian_cell_wall
+  public calc_saghian_velocity_force
   public calc_walldist_tube
 contains
 !
@@ -219,6 +220,51 @@ end subroutine calc_saghian_cell_wall
 !
 !###################################################################################
 !
+subroutine calc_saghian_velocity_force(cell_population, force_field, force_magnitude)
+    use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field
+    use diagnostics, only: enter_exit,get_diagnostics_level
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALC_SAGHIAN_VELOCITY_FORCE" :: CALC_SAGHIAN_VELOCITY_FORCE
+
+
+    integer, intent(in) :: cell_population
+    integer, intent(in) :: force_field
+    real(dp), intent(in) :: force_magnitude
+    !local variables
+    integer :: kcell,dir
+    integer :: diagnostics_level
+    real(dp) :: direction(3)
+    character(len=60) :: sub_name
+
+    sub_name = 'calc_saghian_velocity_force'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    do kcell = 1,num_cells
+      cell_field(kcell, force_field, :) = 0.0_dp
+      if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+        if(diagnostics_level.gt.1)then
+          write(*,*) kcell
+          write(*,*) cell_list(kcell)%ctype
+        endif
+        direction = cell_list(kcell)%velocity(:,1)
+         if(diagnostics_level.gt.1)write(*,*) direction
+        do dir = 1,3
+          cell_field(kcell, force_field, dir) = force_magnitude*direction(dir)
+        enddo
+        if(diagnostics_level.gt.1)then
+          write(*,*) cell_field(kcell, force_field, 1) ,cell_field(kcell, force_field, 2),cell_field(kcell, force_field, 3)
+        endif
+      endif
+    enddo
+
+    call enter_exit(sub_name,2)
+end subroutine calc_saghian_velocity_force
+
+!
+!#########################################################
+!
+
+
 subroutine calc_walldist_tube(kcell)
     use arrays, only: dp,cell_list,plug_params
     use math_utilities, only: unit_vector,vector_length
