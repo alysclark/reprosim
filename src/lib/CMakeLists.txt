@@ -1,4 +1,4 @@
-
+project(ReproSim LANGUAGES Fortran C)
 # The list of all source files that are required to build the library
 set(LIB_SRCS
   arrays.f90
@@ -47,7 +47,8 @@ set_target_properties(reprosim PROPERTIES
 target_include_directories(reprosim PUBLIC "${REPROSIM_MODULE_DIRECTORY}")
 
 message(STATUS "Including directory")
-find_package(superlu CONFIG QUIET)
+find_package(superlu REQUIRED PATHS "/Users/acla148/opencmiss/install/cmake" )
 target_include_directories(reprosim PUBLIC "/Users/acla148/opencmiss/install/include/superlu")
 target_link_libraries(reprosim PUBLIC superlu)
 
+include_directories("/Users/acla148/opencmiss/install/include/superlu")
