@@ -1313,15 +1313,15 @@ subroutine read_icem_msh(filename)
 
     rewind(input)
     if(diagnostics_level.gt.1)write(*,*) 'Allocating vertices (node_xyz) : ', num_nodes
-    allocate(node_xyz(num_nodes,3)) !was vertices in original code
+    allocate(node_xyz(3,num_nodes)) !was vertices in original code
 
     do ii=1, lineNum
         read(input, '(a)', ADVANCE='NO', iostat=status1, SIZE=size1) no_data
     enddo
     do ii=1,num_nodes
-        read(input, *) node_xyz(ii,:)
+        read(input, *) node_xyz(:,ii)
         lineNum=lineNum+1
-        if(diagnostics_level.gt.1)write(*,*) 'new_node : ',ii, node_xyz(ii,:)
+        if(diagnostics_level.gt.1)write(*,*) 'new_node : ',ii, node_xyz(:,ii)
     enddo
     !******* END reading the vertices(x,y,z)***********************************
 
@@ -1634,9 +1634,10 @@ subroutine read_k_file(filename)
         endif
     enddo
     elem_3d=ELEMENT
+
+    write(*,*) size(elem_3d,1)
     deallocate(ELEMENT)
 
-    write(*,*) filename
     call enter_exit(sub_name,2)
 
 end subroutine read_k_file

@@ -6,8 +6,8 @@ module exports
 
   private
   public export_1d_elem_geometry,export_node_geometry,export_node_field,&
-       export_terminal_perfusion,&
-       export_1d_elem_field
+       export_terminal_perfusion, export_1d_elem_field,&
+       export_3d_elem_geom_linear
   public export_cell_location,export_cell_exnode,export_cell_plug
 
 contains
@@ -120,6 +120,66 @@ contains
 
   end subroutine export_1d_elem_geometry
 
+! ###############################################
+
+!!!############################################################################
+
+  subroutine export_3d_elem_geom_linear(EXELEMFILE, name)
+
+    use arrays,only: elem_3d,num_elems
+    use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EXPORT_1D_ELEM_GEOMETRY" :: EXPORT_1D_ELEM_GEOMETRY
+
+!!! Parameters
+    character(len=MAX_FILENAME_LEN), intent(in) :: EXELEMFILE
+    character(len=MAX_STRING_LEN), intent(in) :: name
+
+!!! Local Variables
+    integer :: len_end,ne,nj,nn
+    character(len=1) :: char1
+    logical :: CHANGED
+
+    open(10, file=EXELEMFILE, status='replace')
+    len_end=len_trim(name)
+    !**     write the group name
+    write(10,'( '' Group name: '',A)') name(:len_end)
+    !**         write the elements
+    write(10,'( '' Shape. Dimension=3 line*line*line'' )')
+    CHANGED=.TRUE. !initialise to force output of element information
+    do ne=1,num_elems
+       if(ne>1) THEN
+          CHANGED=.FALSE.
+       endif
+       if(CHANGED)THEN
+          write(10,'( '' #Scale factor sets=0'' )')
+          write(10,'( '' #Nodes= 8'' )')
+          write(10,'( '' #Fields= 1'' )')
+          write(10,'( '' 1) coordinates, coordinate, rectangular cartesian, #Components=3'')')
+          do nj=1,3
+             if(nj==1) char1='x'; if(nj==2) char1='y'; if(nj==3) char1='z';
+             write(10,'(''  '',A2,''.  l.Lagrange*l.Lagrange*l.Lagrange, no modify, standard node based.'')') char1
+             write(10,'( ''     #Nodes= 8'')')
+             do nn=1,8
+                write(10,'(''      '',I1,''.  #Values=1'')') nn
+                write(10,'(''       Value indices:      1 '')')
+                write(10,'(''       Scale factor indices:'',I4)') 0
+             enddo !nn
+          enddo !nj
+       endif
+       write(10,'(1X,''Element: '',I12,'' 0 0'' )') ne
+       !**               write the nodes
+       write(10,'(3X,''Nodes:'' )')
+       write(10,'(4X,8(1X,I12))') elem_3d(ne,1),elem_3d(ne,2),elem_3d(ne,3),elem_3d(ne,4),&
+           elem_3d(ne,5),elem_3d(ne,6),elem_3d(ne,7),elem_3d(ne,8)
+       !**                 write the scale factors
+       !write(10,'(3X,''Scale factors:'' )')
+       !write(10,'(4X,2(1X,E12.5))') 1.d0,1.d0
+    enddo !no_nelist (ne)
+    close(10)
+
+  end subroutine export_3d_elem_geom_linear
+
 
 !!!##########################################################################
 
@@ -139,6 +199,7 @@ contains
     logical :: FIRST_NODE
 
     len_end=len_trim(name)
+    write(*,*) 'export', num_nodes
     if(num_nodes.GT.0) THEN
        open(10, file=EXNODEFILE, status='replace')
        !**     write the group name
@@ -317,7 +378,7 @@ end subroutine export_cell_location
 !!! ###########################################################
 
 subroutine export_cell_plug(filename,cell_population,cur_time,velocity,flow_rate)
-    use arrays,only: dp,num_cells,cell_list,cell_stat
+    use arrays,only: dp,num_cells,cell_list,cell_stat,plug_params
     use math_utilities, only: vector_length
     use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
     implicit none
@@ -328,12 +389,13 @@ subroutine export_cell_plug(filename,cell_population,cur_time,velocity,flow_rate
     integer, intent(in) :: cell_population
     real(dp), intent(in) :: cur_time,velocity,flow_rate
 
-    integer :: kcell, count_cell_exit,cell_count_close_wall,cell_count_far_wall
+    integer :: kcell, count_cell_exit,cell_count_close_wall,cell_count_far_wall,count_cell_plug_region
     real(dp) :: vect_to_tn(3), vect_to_t0(3), dist_to_tn(num_cells),dist_to_t0(num_cells)
     real(dp) :: mean_disp, mean_disp_cl_wall,mean_disp_fr_wall
     real(dp) :: mean_disp_t0, mean_disp_cl_wall_t0,mean_disp_fr_wall_t0
     real(dp) :: std_disp, std_disp_cl_wall,std_disp_fr_wall
     real(dp) :: std_disp_t0, std_disp_cl_wall_t0,std_disp_fr_wall_t0
+    real(dp) :: angle
 
 
     if(cur_time.eq.0.0_dp) then
@@ -342,90 +404,104 @@ subroutine export_cell_plug(filename,cell_population,cur_time,velocity,flow_rate
       open(20, file=filename, access = 'append', status='old')
     endif
 
-    count_cell_exit = 0
-    cell_count_close_wall = 0
-    mean_disp_cl_wall = 0.0_dp
-    mean_disp_fr_wall = 0.0_dp
-    mean_disp = 0.0_dp
-    mean_disp_cl_wall_t0 = 0.0_dp
-    mean_disp_fr_wall_t0 = 0.0_dp
-    mean_disp_t0 = 0.0_dp
-    std_disp_cl_wall = 0.0_dp
-    std_disp_fr_wall = 0.0_dp
-    std_disp = 0.0_dp
-    std_disp_cl_wall_t0 = 0.0_dp
-    std_disp_fr_wall_t0 = 0.0_dp
-    std_disp_t0 = 0.0_dp
-
-    cell_count_far_wall = 0
+!    count_cell_exit = 0
+!    cell_count_close_wall = 0
+!    mean_disp_cl_wall = 0.0_dp
+!    mean_disp_fr_wall = 0.0_dp
+!    mean_disp = 0.0_dp
+!    mean_disp_cl_wall_t0 = 0.0_dp
+!    mean_disp_fr_wall_t0 = 0.0_dp
+!    mean_disp_t0 = 0.0_dp
+!    std_disp_cl_wall = 0.0_dp
+!    std_disp_fr_wall = 0.0_dp
+!    std_disp = 0.0_dp
+!    std_disp_cl_wall_t0 = 0.0_dp
+!    std_disp_fr_wall_t0 = 0.0_dp
+!    std_disp_t0 = 0.0_dp
+!    count_cell_plug_region = 0
+!
+!    cell_count_far_wall = 0
+!    do kcell = 1,num_cells
+!      !z displacement since last export
+!      if(cell_list(kcell)%centre(3,1).gt.plug_params%plug_zmin)then
+!       if(cell_list(kcell)%centre(3,1).lt.plug_params%plug_zmax)then
+!         count_cell_plug_region = count_cell_plug_region +1
+!       endif
+!      endif
+!      dist_to_tn(kcell) = cell_list(kcell)%centre(3,1) - cell_list(kcell)%centre_t_n(3,1)
+!      !dist_to_tn = vector_length(vect_to_tn)
+!      ! z displacement since time zero
+!      dist_to_t0(kcell) = cell_list(kcell)%centre(3,1) - cell_list(kcell)%centre_t_0(3,1)
+!      !dist_to_t0 = vector_length(vect_to_t0)
+!      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH)then
+!        count_cell_exit = count_cell_exit + 1
+!
+!      elseif(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+!        if(cell_list(kcell)%wall_distance.lt.2.0_dp*cell_list(kcell)%radius(1))then
+!          cell_count_close_wall = cell_count_close_wall + 1
+!          mean_disp_cl_wall = mean_disp_cl_wall + dist_to_tn(kcell)
+!          mean_disp_cl_wall_t0 = mean_disp_cl_wall_t0 + dist_to_t0(kcell)
+!        else
+!          cell_count_far_wall = cell_count_far_wall + 1
+!          mean_disp_fr_wall = mean_disp_fr_wall + dist_to_tn(kcell)
+!          mean_disp_fr_wall_t0 = mean_disp_fr_wall_t0 + dist_to_t0(kcell)
+!        endif
+!        mean_disp = mean_disp + dist_to_tn(kcell)
+!        mean_disp_t0 = mean_disp_t0 + dist_to_t0(kcell)
+!      endif
+!
+!      cell_list(kcell)%centre_t_n(:,1) = cell_list(kcell)%centre(:,1)
+!    enddo
+!
+!    mean_disp_cl_wall = mean_disp_cl_wall/cell_count_close_wall
+!    mean_disp_cl_wall_t0 = mean_disp_cl_wall_t0/cell_count_close_wall
+!    mean_disp_fr_wall = mean_disp_fr_wall/cell_count_far_wall
+!    mean_disp_fr_wall_t0 = mean_disp_fr_wall_t0/cell_count_far_wall
+!    mean_disp = mean_disp/(cell_count_close_wall+cell_count_far_wall)
+!    mean_disp_t0 = mean_disp_t0/(cell_count_close_wall+cell_count_far_wall)
+!
+!    do kcell = 1,num_cells
+!      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH)then
+!       !Right now do nothing
+!      elseif(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
+!        if(cell_list(kcell)%wall_distance.lt.2.0_dp*cell_list(kcell)%radius(1))then
+!          std_disp_cl_wall = std_disp_cl_wall + (mean_disp_cl_wall - dist_to_tn(kcell))**2.0_dp
+!          std_disp_cl_wall_t0 = std_disp_cl_wall_t0 + (mean_disp_cl_wall_t0 - dist_to_t0(kcell))**2.0_dp
+!        else
+!          std_disp_fr_wall = std_disp_fr_wall + (mean_disp_fr_wall - dist_to_tn(kcell))**2.0_dp
+!          std_disp_fr_wall_t0 = std_disp_fr_wall_t0 + (mean_disp_fr_wall_t0 - dist_to_t0(kcell))**2.0_dp
+!        endif
+!        std_disp = std_disp + (mean_disp - dist_to_tn(kcell))**2.0_dp
+!        std_disp_t0 = std_disp_t0 + (mean_disp_t0 - dist_to_t0(kcell))**2.0_dp
+!      endif
+!    enddo
+!    std_disp_cl_wall=std_disp_cl_wall/(cell_count_close_wall+cell_count_far_wall-1)
+!    std_disp_cl_wall_t0=std_disp_cl_wall_t0/(cell_count_close_wall+cell_count_far_wall-1)
+!    std_disp_fr_wall=std_disp_fr_wall/(cell_count_far_wall-1)
+!    std_disp_fr_wall_t0=std_disp_fr_wall_t0/(cell_count_far_wall-1)
+!    std_disp=std_disp/(cell_count_close_wall-1)
+!    std_disp_t0=std_disp_t0/(cell_count_close_wall-1)
+!
+!
+!    std_disp = sqrt(std_disp)
+!    std_disp_cl_wall = sqrt(std_disp_cl_wall)
+!    std_disp_fr_wall = sqrt(std_disp_fr_wall)
+!    std_disp_t0= sqrt(std_disp_t0)
+!    std_disp_cl_wall_t0 = sqrt(std_disp_cl_wall_t0)
+!    std_disp_fr_wall_t0 = sqrt(std_disp_fr_wall_t0)
     do kcell = 1,num_cells
-      !z displacement since last export
-      dist_to_tn(kcell) = cell_list(kcell)%centre(3,1) - cell_list(kcell)%centre_t_n(3,1)
-      !dist_to_tn = vector_length(vect_to_tn)
-      ! z displacement since time zero
-      dist_to_t0(kcell) = cell_list(kcell)%centre(3,1) - cell_list(kcell)%centre_t_0(3,1)
-      !dist_to_t0 = vector_length(vect_to_t0)
-      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH)then
-        count_cell_exit = count_cell_exit + 1
-
-      elseif(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
-        if(cell_list(kcell)%wall_distance.lt.2.0_dp*cell_list(kcell)%radius(1))then
-          cell_count_close_wall = cell_count_close_wall + 1
-          mean_disp_cl_wall = mean_disp_cl_wall + dist_to_tn(kcell)
-          mean_disp_cl_wall_t0 = mean_disp_cl_wall_t0 + dist_to_t0(kcell)
-        else
-          cell_count_far_wall = cell_count_far_wall + 1
-          mean_disp_fr_wall = mean_disp_fr_wall + dist_to_tn(kcell)
-          mean_disp_fr_wall_t0 = mean_disp_fr_wall_t0 + dist_to_t0(kcell)
-        endif
-        mean_disp = mean_disp + dist_to_tn(kcell)
-        mean_disp_t0 = mean_disp_t0 + dist_to_t0(kcell)
+      if(cur_time.gt.0.0_dp)then
+      angle = atan2((cell_list(kcell)%centre_t_n(1,1) - cell_list(kcell)%centre(1,1)),(cell_list(kcell)%centre_t_n(2,1) &
+        - cell_list(kcell)%centre(2,1)))
+      write(20,'(F12.6,X,F12.6)') cur_time,angle
       endif
-
       cell_list(kcell)%centre_t_n(:,1) = cell_list(kcell)%centre(:,1)
     enddo
 
-    mean_disp_cl_wall = mean_disp_cl_wall/cell_count_close_wall
-    mean_disp_cl_wall_t0 = mean_disp_cl_wall_t0/cell_count_close_wall
-    mean_disp_fr_wall = mean_disp_fr_wall/cell_count_far_wall
-    mean_disp_fr_wall_t0 = mean_disp_fr_wall_t0/cell_count_far_wall
-    mean_disp = mean_disp/(cell_count_close_wall+cell_count_far_wall)
-    mean_disp_t0 = mean_disp_t0/(cell_count_close_wall+cell_count_far_wall)
-
-    do kcell = 1,num_cells
-      if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH)then
-       !Right now do nothing
-      elseif(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
-        if(cell_list(kcell)%wall_distance.lt.2.0_dp*cell_list(kcell)%radius(1))then
-          std_disp_cl_wall = std_disp_cl_wall + (mean_disp_cl_wall - dist_to_tn(kcell))**2.0_dp
-          std_disp_cl_wall_t0 = std_disp_cl_wall_t0 + (mean_disp_cl_wall_t0 - dist_to_t0(kcell))**2.0_dp
-        else
-          std_disp_fr_wall = std_disp_fr_wall + (mean_disp_fr_wall - dist_to_tn(kcell))**2.0_dp
-          std_disp_fr_wall_t0 = std_disp_fr_wall_t0 + (mean_disp_fr_wall_t0 - dist_to_t0(kcell))**2.0_dp
-        endif
-        std_disp = std_disp + (mean_disp - dist_to_tn(kcell))**2.0_dp
-        std_disp_t0 = std_disp_t0 + (mean_disp_t0 - dist_to_t0(kcell))**2.0_dp
-      endif
-    enddo
-    std_disp_cl_wall=std_disp_cl_wall/(cell_count_close_wall+cell_count_far_wall-1)
-    std_disp_cl_wall_t0=std_disp_cl_wall_t0/(cell_count_close_wall+cell_count_far_wall-1)
-    std_disp_fr_wall=std_disp_fr_wall/(cell_count_far_wall-1)
-    std_disp_fr_wall_t0=std_disp_fr_wall_t0/(cell_count_far_wall-1)
-    std_disp=std_disp/(cell_count_close_wall-1)
-    std_disp_t0=std_disp_t0/(cell_count_close_wall-1)
-
-
-    std_disp = sqrt(std_disp)
-    std_disp_cl_wall = sqrt(std_disp_cl_wall)
-    std_disp_fr_wall = sqrt(std_disp_fr_wall)
-    std_disp_t0= sqrt(std_disp_t0)
-    std_disp_cl_wall_t0 = sqrt(std_disp_cl_wall_t0)
-    std_disp_fr_wall_t0 = sqrt(std_disp_fr_wall_t0)
-
-    write(20,'(F12.6, X, 3(I12,X),14(F12.6))') cur_time,count_cell_exit,cell_count_close_wall, cell_count_far_wall,&
-      mean_disp_cl_wall,mean_disp_fr_wall,mean_disp, mean_disp_cl_wall_t0,mean_disp_fr_wall_t0,&
-      mean_disp_t0, std_disp_cl_wall,std_disp_fr_wall,std_disp, std_disp_cl_wall_t0,std_disp_fr_wall_t0,&
-      std_disp_t0,velocity,flow_rate
+    !write(20,'(F12.6, X, 3(I12,X),14(F12.6),X,I12)') cur_time,count_cell_exit,cell_count_close_wall, cell_count_far_wall,&
+    !  mean_disp_cl_wall,mean_disp_fr_wall,mean_disp, mean_disp_cl_wall_t0,mean_disp_fr_wall_t0,&
+    !  mean_disp_t0, std_disp_cl_wall,std_disp_fr_wall,std_disp, std_disp_cl_wall_t0,std_disp_fr_wall_t0,&
+    !  std_disp_t0,velocity,flow_rate,count_cell_plug_region
     close(20)
 end subroutine export_cell_plug
 

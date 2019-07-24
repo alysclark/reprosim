@@ -51,6 +51,9 @@ subroutine calc_random_forces(cell_population, force_field, force_magnitude)
         do dir = 1,3
           cell_field(kcell, force_field, dir) = force_magnitude*direction(dir)
         enddo
+        !TEMP
+        cell_field(kcell, force_field, 3) = 0.0_dp!force_magnitude*direction(dir)
+        cell_field(kcell, force_field, 2) = cell_field(kcell, force_field, 2) + 0.015_dp*0.0002_dp*15000_dp*4.0_dp!*4.0_dp
         if(diagnostics_level.gt.1)then
           write(*,*) cell_field(kcell, force_field, 1) ,cell_field(kcell, force_field, 2),cell_field(kcell, force_field, 3)
         endif
@@ -233,6 +236,7 @@ end subroutine calc_saghian_cell_wall
 subroutine calc_saghian_velocity_force(cell_population, force_field, force_magnitude)
     use arrays, only: dp,num_cells,cell_list,cell_stat,cell_field
     use diagnostics, only: enter_exit,get_diagnostics_level
+    use math_utilities, only: vector_length
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALC_SAGHIAN_VELOCITY_FORCE" :: CALC_SAGHIAN_VELOCITY_FORCE
 
 
@@ -255,11 +259,14 @@ subroutine calc_saghian_velocity_force(cell_population, force_field, force_magni
       if(cell_list(kcell)%ctype.eq.cell_population.and.cell_list(kcell)%state.eq.cell_stat%ALIVE)then
         if(diagnostics_level.gt.1)then
           write(*,*) kcell
-          write(*,*) cell_list(kcell)%ctype
+          write(*,*) cell_list(kcell)%ctype,vector_length(direction)
         endif
         direction = cell_list(kcell)%velocity(:,1)
          if(diagnostics_level.gt.1)write(*,*) direction
         do dir = 1,3
+          !Rojan converted velocity to shear like bioflux in thesis, but in paper we leave as velocity
+          !as we shouls be using actual shear on cells if we follow that approach (linear reln does
+          !not hold in the artery model and teh -0.0002 is negligible compared to flow mags)
           cell_field(kcell, force_field, dir) = force_magnitude*direction(dir)
         enddo
         if(diagnostics_level.gt.1)then

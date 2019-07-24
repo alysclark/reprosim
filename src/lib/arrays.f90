@@ -89,12 +89,13 @@ module arrays
   type abm_control_params
     real(dp) :: delta_t_min         !minimum time step
     real(dp) :: delta_t             !default time strp
-    real(dp) :: delta_min = 0.31_dp    !minimum allowed separation between cells (fraction of cell radius)
+    real(dp) :: delta_min = 0.000020_dp    !minimum movement in a single timestep
     real(dp) :: d_nbr_limit = 2.0_dp*2.0_dp*20.0_dp
-    real(dp) :: delta_max = 0.10_dp    !maximum movement in a single timestep
+    real(dp) :: delta_max = 0.20_dp    !maximum movement in a single timestep
     real(dp) :: current_time
+    real(dp) :: export_time
     real(dp) :: used_delta_t
-    logical :: Wall = .True. !Is there a wall in the model?
+    logical :: Wall = .False. !Is there a wall in the model?
     !delta_tmove = dt_min
     !ndt = 5
   end type abm_control_params
@@ -152,9 +153,10 @@ module arrays
     integer :: nwallcells
     integer :: nlist
     integer :: ndt
-    logical :: use_packing = .True.
+    logical :: use_packing = .False.
     logical :: use_loosepack = .False.
     logical :: use_makeRing = .False.
+    logical :: use_2D_rand = .True.
   end type plug_model_properties
 
   type(plug_model_properties) :: plug_params

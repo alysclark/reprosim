@@ -48,6 +48,7 @@ subroutine initialise_abm(model_type,total_cells,num_forces,time_step,min_time_s
     abm_control%delta_t_min = min_time_step
     !Intitialise time
     abm_control%current_time = 0.0_dp
+    abm_control%export_time = 15.0_dp
 
     !Initialise cell location
     if(model_type.eq.'trophoblast')then
@@ -307,7 +308,27 @@ subroutine place_cells_plug
     if(diagnostics_level.gt.1)then
       open(out_unit, file = 'cell_initialisation.txt',action='write')
     endif
-    if (plug_params%use_packing .or. plug_params%use_makeRing) then
+
+    if (plug_params%use_2D_rand) then
+    kcell = 0
+     do i = 1,80
+       call RANDOM_NUMBER(r)
+       x = 1000.0_dp*r
+       call RANDOM_NUMBER(r)
+       y = 1000.0_dp*r
+       kcell = kcell + 1
+       rsite = [x, y, 0.0_dp]
+       gen = 1
+       region = 0
+       ctype = TROPHO_CELL
+       tag = 0
+       if(kcell > num_cells)then
+         call reallocate_abm_memory(kcell)
+       endif
+       write(*,*) 'creating cell'
+       call create_cell(kcell,rsite,ctype,gen,tag,region,.false.)
+     enddo
+    else if (plug_params%use_packing .or. plug_params%use_makeRing) then
         z0 = (plug_params%plug_zmax + plug_params%plug_zmin)/2.0_dp
         xrng = plug_params%tube_radius
         zrng = plug_params%plug_zmax - plug_params%plug_zmin
@@ -415,31 +436,31 @@ subroutine place_cells_plug
                 enddo
             enddo
         enddo
-    else
-        !!!!!!this code that generates packed cells is consistent with my MATLAB code!!!!!
-        do ix = 0,nxx
-            do iy = 0,nxx
-                do iz = 0,nzz
-                    x = -xrng+cell_radius+(ix*2+mod(REAL(iy+iz,dp),2.))*cell_radius!-plug_params%tube_radius+cell_radius+ix*2*cell_radius
-                    y = -xrng+cell_radius+sqrt(3.)*(iy+1/3.*mod(REAL(iz,dp),2.))*cell_radius!-plug_params%tube_radius+cell_radius+iy*2*cell_radius
-                    z = plug_params%plug_zmin+(iz*2*sqrt(6.)/3)*cell_radius!plug_params%plug_zmin+iz*2*cell_radius
-
-                    r = sqrt(x*x + y*y)
-                    if ((r+cell_radius<plug_params%tube_radius) .AND. (z>plug_params%plug_zmin .OR. z<plug_params%plug_zmax)) then
-                        kcell = kcell + 1
-                        rsite = [x, y, z]
-                        gen = 1
-                        region = 0
-                        ctype = TROPHO_CELL
-                        tag = 0
-                        if(kcell > num_cells)then
-                          call reallocate_abm_memory(kcell)
-                        endif
-                        call create_cell(kcell,rsite,ctype,gen,tag,region,.false.)
-                    endif
-                enddo
-            enddo
-        enddo
+    !else
+     !   !!!!!!this code that generates packed cells is consistent with my MATLAB code!!!!!
+     !   do ix = 0,nxx
+     !       do iy = 0,nxx
+     !           do iz = 0,nzz
+     !               x = -xrng+cell_radius+(ix*2+mod(REAL(iy+iz,dp),2.))*cell_radius!-plug_params%tube_radius+cell_radius+ix*2*cell_radius
+     !               y = -xrng+cell_radius+sqrt(3.)*(iy+1/3.*mod(REAL(iz,dp),2.))*cell_radius!-plug_params%tube_radius+cell_radius+iy*2*cell_radius
+      !              z = plug_params%plug_zmin+(iz*2*sqrt(6.)/3)*cell_radius!plug_params%plug_zmin+iz*2*cell_radius
+!
+    !                r = sqrt(x*x + y*y)
+     !               if ((r+cell_radius<plug_params%tube_radius) .AND. (z>plug_params%plug_zmin .OR. z<plug_params%plug_zmax)) then
+     !!                   kcell = kcell + 1
+     !                   rsite = [x, y, z]
+     !                   gen = 1
+     !                   region = 0
+     !                   ctype = TROPHO_CELL
+     !                   tag = 0
+     !                   if(kcell > num_cells)then
+     !                     call reallocate_abm_memory(kcell)
+     !                   endif
+     !                   call create_cell(kcell,rsite,ctype,gen,tag,region,.false.)
+     !               endif
+     !           enddo
+     !       enddo
+     !   enddo
 
     endif
     close(out_unit)
@@ -559,17 +580,17 @@ subroutine setup_nbrlists
         endif
 
     enddo
-    if(diagnostics_level.gt.1)then
-      write(*,*) 'End nbrs', dmin,dmin_wall, dmin_wall - 20.0_dp*abm_control%delta_min,&
-       0.5_dp*(dmin-40.0_dp*abm_control%delta_min), abm_control%delta_min
-     endif
+    !if(diagnostics_level.gt.1)then
+    !  write(*,*) 'End nbrs', dmin,dmin_wall, dmin_wall - 20.0_dp*abm_control%delta_min,&
+    !   0.5_dp*(dmin-40.0_dp*abm_control%delta_min), abm_control%delta_min
+    ! endif
 
 
-    if(abm_control%Wall)then
-      abm_control%delta_max = min(0.5_dp*(dmin-40.0_dp*abm_control%delta_min),dmin_wall - 20.0_dp*abm_control%delta_min)
-    else
-      abm_control%delta_max = 0.5_dp*(dmin-abm_control%delta_min)
-    endif
+    !if(abm_control%Wall)then
+    !  abm_control%delta_max = min(0.5_dp*(dmin-40.0_dp*abm_control%delta_min),dmin_wall - 20.0_dp*abm_control%delta_min)
+    !else
+    !  abm_control%delta_max = 0.5_dp*(dmin-abm_control%delta_min)
+    !endif
 
 
     call enter_exit(sub_name,2)
@@ -634,17 +655,30 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
     if(diagnostics_level>1)write(*,*) 'Max force', max_force, max_cell
     if (max_force > 0) then
       max_dx = dt_move*max_force/kdrag
-      do while (max_dx > abm_control%delta_max)
-        dt_move = dt_move/2.0_dp
-        max_dx = dt_move*max_force/kdrag
-      enddo
+      if(max_dx.gt.abm_control%delta_max)then
+        do while (max_dx.gt.abm_control%delta_max)
+          dt_move = dt_move/2.0_dp
+          max_dx = dt_move*max_force/kdrag
+        enddo
+      elseif(max_dx.lt.abm_control%delta_min)then
+        do while (max_dx.gt.abm_control%delta_min)
+          dt_move = dt_move*2.0_dp
+          max_dx = dt_move*max_force/kdrag
+        enddo
+      endif
     endif
 
+    abm_control%current_time = abm_control%current_time + dt_move
+    if(abm_control%current_time.ge.abm_control%export_time)then
+      dt_move = dt_move - (abm_control%current_time-abm_control%export_time)
+      abm_control%current_time = abm_control%export_time
+      abm_control%export_time = abm_control%export_time + 15.0_dp
+    endif
     if(diagnostics_level>1)write(*,*)'dx max', max_dx, dt_move, abm_control%delta_max
 
-    if(dt_move < abm_control%delta_t_min)then
-      dt_move = abm_control%delta_t_min
-    endif
+    !if(dt_move < abm_control%delta_t_min)then
+    !  dt_move = abm_control%delta_t_min
+    !endif
 
     do kcell = 1, num_cells
         if (cell_list(kcell)%state == cell_stat%GONE_BACK .or. cell_list(kcell)%state == cell_stat%GONE_THROUGH) cycle
@@ -665,7 +699,6 @@ subroutine move_cells_force(cell_population,kdrag,input_dt)
 
     deallocate(force)
 
-    abm_control%current_time = abm_control%current_time + dt_move
     abm_control%used_delta_t = dt_move
     if(diagnostics_level.gt.1)then
         write(*,*) 'current_time', abm_control%current_time
