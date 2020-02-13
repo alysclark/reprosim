@@ -689,6 +689,7 @@ contains
 
     real(dp) :: int_length,int_radius,seg_length,viscosity, &
                 seg_resistance,cap_unit_radius, cap_length
+    real(dp) :: cap_resistance2
     real(dp) :: int_radius_in,int_radius_out
     real(dp),allocatable :: resistance(:)
     integer :: ne,nu,i,j,np1,np2,nc,nv
@@ -720,6 +721,8 @@ contains
     if (AllocateStatus /= 0)then
        STOP "*** Not enough memory for resistance array ***"
     endif
+    
+    resistance = 0.0_dp
 
     ne =units(1) !Get a terminal unit
     nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
@@ -727,34 +730,37 @@ contains
     int_radius_in = (elem_field(ne_radius,ne)+elem_field(ne_radius,nv))/2.0_dp ! mm radius of inlet intermediate villous (average of artery and vein)
     int_radius_out=(0.03_dp + 0.03_dp/2.0_dp)/2.0_dp ! mm radius of mature intermediate villous (average of artery and vein)
     int_length=1.5_dp !mm Length of each intermediate villous
-    cap_length=3_dp/num_convolutes !mm length of capillary convolutes
+    cap_length=3.0_dp/num_convolutes !mm length of capillary convolutes
     cap_radius=0.0144_dp/2.0_dp !radius of capillary convolutes
     seg_length=int_length/num_convolutes !lengh of each intermediate villous segment
     viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
     cap_unit_radius = 0.03_dp
     cap_resistance=(8.d0*viscosity*cap_length)/(PI*cap_radius**4) !resistance of each capillary convolute segment
-    terminal_resistance = 0
+    terminal_resistance = 0.0_dp
+    
 	
-
+	write(*,*) 'cap resistance', cap_resistance, cap_length, cap_radius, num_convolutes, 3.0_dp/num_convolutes
+    write(*,*) 'radii in and out', int_radius_in, int_radius_out
     do j=1,num_generations
       int_radius = int_radius_in - (int_radius_in-int_radius_out)/num_generations*j
 
-      seg_resistance=(8.d0*viscosity*seg_length)/(PI*int_radius**4) !resistance of each intermediate villous segment
+      seg_resistance=(8.0_dp*viscosity*seg_length)/(PI*int_radius**4.0_dp) !resistance of each intermediate villous segment
       !calculate total resistance of terminal capillary conduits
+      write(*,*) cap_resistance,seg_resistance,num_convolutes
       i=1
-      resistance(i)= cap_resistance + 2.d0*seg_resistance
+      resistance(i)= cap_resistance + 2.0_dp*seg_resistance
       do i=2,num_convolutes
-        resistance(i)=2.d0*seg_resistance + 1/(1/cap_resistance + 1/resistance(i-1))
+        resistance(i)=2.0_dp*seg_resistance + 1.0_dp/(1.0_dp/cap_resistance + 1.0_dp/resistance(i-1))
       enddo
-      cap_resistance = resistance(num_convolutes) !Pa . s per mm^3 total resistance of terminal capillary conduits
-	
+      cap_resistance2 = resistance(num_convolutes) !Pa . s per mm^3 total resistance of terminal capillary conduits
+	   write(*,*) resistance
       !We have symmetric generations of intermediate villous trees so we can calculate the total resistance
       !of the system by summing the resistance of each generation
 
-      terminal_resistance = terminal_resistance + cap_resistance/2**j
+      terminal_resistance = terminal_resistance + cap_resistance2/2**j
     enddo
 
-    terminal_length = terminal_resistance*(PI*cap_unit_radius**4)/(8.d0*viscosity)
+    terminal_length = terminal_resistance*(PI*cap_unit_radius**4.0_dp)/(8.0_dp*viscosity)
 
     if(diagnostics_level.GE.2)then
       print *, "Resistance of capillary conduits=",cap_resistance
@@ -763,6 +769,8 @@ contains
       print *, "Total capillary length for the vasculature (cm)",(terminal_length*num_units)/10
     endif
 
+    write(*,*) 'overall cap resistance', cap_resistance
+    write(*,*) 'Effective length',terminal_length
     !set the effective length of each capillary unit based the total resistance of capillary convolutes   
     do nu=1,num_units
       ne =units(nu) !Get a terminal unit    
@@ -780,7 +788,7 @@ contains
       enddo
 
       !update element volume
-      elem_field(ne_vol,nc) = PI * elem_field(ne_radius,nc)**2 * &
+      elem_field(ne_vol,nc) = PI * elem_field(ne_radius,nc)**2.0_dp * &
             elem_field(ne_length,nc)
 
     enddo
