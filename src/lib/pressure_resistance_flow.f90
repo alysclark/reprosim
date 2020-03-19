@@ -9,6 +9,7 @@ module pressure_resistance_flow
 !*boundary_conditions:* Defines boundary conditions for prq problems
 !
   use solve, only: BICGSTAB_LinSolv,pmgmres_ilu_cr
+  use capillary_flow, only: export_capillary_pressures
   implicit none
   !Module parameters
 
@@ -202,6 +203,8 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2)) !gamma:Pedley correction factor
 
     !NEED TO UPDATE TERMINAL SOLUTION HERE. LOOP THO' UNITS AND TAKE FLOW AND PRESSURE AT TERMINALS
     call map_flow_to_terminals
+    
+    call export_capillary_pressures('dummy.txt')
 
     deallocate (mesh_from_depvar, STAT = AllocateStatus)
     deallocate (depvar_at_elem, STAT = AllocateStatus)
@@ -311,8 +314,8 @@ subroutine calculate_resistance(viscosity,mesh_type)
        np1=elem_nodes(1,ne)
        np2=elem_nodes(2,ne)
        ! element Poiseuille (laminar) resistance in units of Pa.s.mm-3        
-       resistance = 8.d0*viscosity*elem_field(ne_length,ne)/ &
-            (PI*elem_field(ne_radius,ne)**4) !laminar resistance
+       resistance = 8.0_dp*viscosity*elem_field(ne_length,ne)/ &
+            (PI*elem_field(ne_radius,ne)**4.0_dp) !laminar resistance
        elem_field(ne_resist,ne) = resistance
        if(diagnostics_level.GT.1)then
        		print *,"TESTING RESISTANCE: element",ne,"resistance",elem_field(ne_resist,ne),"radius",elem_field(ne_radius,ne)

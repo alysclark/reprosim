@@ -727,6 +727,7 @@ contains
     ne =units(1) !Get a terminal unit
     nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
     nv =  elem_cnct(1,1,nc) !vein is downstream of the capillary
+    write(*,*) ne,nc,nv
     int_radius_in = (elem_field(ne_radius,ne)+elem_field(ne_radius,nv))/2.0_dp ! mm radius of inlet intermediate villous (average of artery and vein)
     int_radius_out=(0.03_dp + 0.03_dp/2.0_dp)/2.0_dp ! mm radius of mature intermediate villous (average of artery and vein)
     int_length=1.5_dp !mm Length of each intermediate villous
@@ -736,6 +737,7 @@ contains
     viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
     cap_unit_radius = 0.03_dp
     cap_resistance=(8.d0*viscosity*cap_length)/(PI*cap_radius**4) !resistance of each capillary convolute segment
+    cap_resistance = 50000
     terminal_resistance = 0.0_dp
     
 	
@@ -743,6 +745,7 @@ contains
     write(*,*) 'radii in and out', int_radius_in, int_radius_out
     do j=1,num_generations
       int_radius = int_radius_in - (int_radius_in-int_radius_out)/num_generations*j
+      write(*,*) int_radius
 
       seg_resistance=(8.0_dp*viscosity*seg_length)/(PI*int_radius**4.0_dp) !resistance of each intermediate villous segment
       !calculate total resistance of terminal capillary conduits
@@ -769,7 +772,7 @@ contains
       print *, "Total capillary length for the vasculature (cm)",(terminal_length*num_units)/10
     endif
 
-    write(*,*) 'overall cap resistance', cap_resistance
+    write(*,*) 'overall cap resistance', terminal_resistance
     write(*,*) 'Effective length',terminal_length
     !set the effective length of each capillary unit based the total resistance of capillary convolutes   
     do nu=1,num_units
