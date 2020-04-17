@@ -693,7 +693,7 @@ contains
     integer, intent(inout) :: num_convolutes,num_generations
 
     real(dp) :: int_length,int_radius,seg_length,viscosity, &
-                seg_resistance,cap_unit_radius, cap_length
+                seg_resistance,cap_unit_radius, cap_length,&
                 capillary_unit_vol, capillary_unit_area
     real(dp) :: cap_resistance2
     real(dp) :: int_radius_in,int_radius_out
