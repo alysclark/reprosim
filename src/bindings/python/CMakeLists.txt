@@ -18,6 +18,7 @@ set(INTERFACE_SRCS
   ../interface/exports.i
   ../interface/geometry.i
   ../interface/indices.i
+  ../interface/nutrient_transport.i
   ../interface/pressure_resistance_flow.i
 
 )

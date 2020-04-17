@@ -8,6 +8,7 @@ set(LIB_SRCS
   geometry.f90
   indices.f90
   math_utilities.f90
+  nutrient_transport.f90
   other_consts.f90
   pressure_resistance_flow.f90
   solve.f90
