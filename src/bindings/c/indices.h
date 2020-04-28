@@ -3,6 +3,7 @@
 
 #include "symbol_export.h"
 SHO_PUBLIC void perfusion_indices();
+SHO_PUBLIC void perfusion_transport_indices();
 SHO_PUBLIC int get_ne_radius();
 
 #endif /* REPROSIM_INDICES_H */

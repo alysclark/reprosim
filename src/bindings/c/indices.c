@@ -4,12 +4,18 @@
 #include <string.h>
 
 void perfusion_indices_c();
+void perfusion_transport_indices_c();
 int get_ne_radius_c();
 
 
 void perfusion_indices()
 {
   perfusion_indices_c();
+}
+
+void perfusion_transport_indices()
+{
+  perfusion_transport_indices_c();
 }
 
 int get_ne_radius()

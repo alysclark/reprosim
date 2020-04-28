@@ -21,6 +21,21 @@ contains
 
   end subroutine perfusion_indices_c
 
+!
+!> Perfusion/tranrport indices
+  subroutine perfusion_transport_indices_c() bind(C, name="perfusion_transport_indices_c")
+
+    use indices, only: perfusion_transport_indices
+    implicit none
+
+#if defined _WIN32 && defined __INTEL_COMPILER
+    call so_perfusion_transport_indices()
+#else
+    call perfusion_transport_indices()
+#endif
+
+  end subroutine perfusion_transport_indices_c
+
   function get_ne_radius_c() result(res) bind(C, name="get_ne_radius_c")
 
     use indices, only: get_ne_radius

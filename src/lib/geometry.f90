@@ -748,12 +748,11 @@ contains
     viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
     cap_unit_radius = 0.03_dp
     cap_resistance=(8.d0*viscosity*cap_length)/(PI*cap_radius**4) !resistance of each capillary convolute segment
-    cap_resistance = 50000
+    cap_resistance = 50000.0_dp
     terminal_resistance = 0.0_dp
     
 	write(*,*) 'cap resistance', cap_resistance, cap_length, cap_radius, num_convolutes, 3.0_dp/num_convolutes
     write(*,*) 'radii in and out', int_radius_in, int_radius_out
-    terminal_resistance = 0
 
     !calculate total capillary unit volume and surface area so that this can be used by subroutine calculate_stats
     !in module pressure_resistance_flow
@@ -825,6 +824,7 @@ contains
             elem_field(ne_length,nc)
 
     enddo
+    deallocate(resistance)
 
     call enter_exit(sub_name,2)
 
