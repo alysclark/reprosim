@@ -1855,7 +1855,7 @@ subroutine update_1d_elem_field(ne_field,elem_number,value)
 
     use other_consts, only: MAX_FILENAME_LEN, MAX_STRING_LEN
     use arrays,only: dp,elem_field,num_elems
-    use indices,only: num_ne
+    use indices
     use diagnostics, only: enter_exit, get_diagnostics_level
     implicit none
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_UPDATE_1D_ELEM_FIELD" :: UPDATE_1D_ELEM_FIELD
@@ -1878,6 +1878,12 @@ subroutine update_1d_elem_field(ne_field,elem_number,value)
       print *, 'WARNING: trying to allocate to element greater than defined for this problem',elem_number,num_elems
     else
       elem_field(ne_field,elem_number) = value
+    endif
+
+    if(ne_field.eq.ne_radius)then
+        elem_field(ne_radius_in,elem_number) = value
+        elem_field(ne_radius_out,elem_number) = value
+
     endif
     call enter_exit(sub_name,2)
   end subroutine update_1d_elem_field

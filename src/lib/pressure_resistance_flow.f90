@@ -22,7 +22,7 @@ module pressure_resistance_flow
 contains
 !###################################################################################
 !
-subroutine evaluate_prq(mesh_type,bc_type,inlet_flow,inlet_pressure,outlet_pressure)
+subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,outlet_pressure)
 !*Description:* Solves for pressure and flow in a rigid or compliant tree structure  
 ! Model Types:                                                                     
 ! mesh_type: can be 'simple_tree' or 'full_plus_tube'. Simple_tree is the input arterial tree 
@@ -36,7 +36,7 @@ subroutine evaluate_prq(mesh_type,bc_type,inlet_flow,inlet_pressure,outlet_press
     use diagnostics, only: enter_exit,get_diagnostics_level
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ" :: EVALUATE_PRQ
   
-    character(len=60), intent(in) :: mesh_type,bc_type
+    character(len=60), intent(in) :: mesh_type,bc_type,rheology_type,vessel_type
     real(dp), intent(in) :: inlet_flow,inlet_pressure,outlet_pressure
     
     !local variables
@@ -53,12 +53,14 @@ subroutine evaluate_prq(mesh_type,bc_type,inlet_flow,inlet_pressure,outlet_press
     integer :: AllocateStatus
     integer :: diagnostics_level
 
-    real(dp), allocatable :: prq_solution(:),solver_solution(:)
+    real(dp), allocatable :: prq_solution(:),prq_solution_old(:),solver_solution(:)
     real(dp) :: viscosity,density,inletbc,outletbc,gamma,total_resistance
     logical, allocatable :: FIX(:)
-    logical :: ADD=.FALSE.,CONVERGED=.FALSE.
+    logical :: ADD=.FALSE.
     character(len=60) :: sub_name
-    integer :: no,depvar,nz,ne,SOLVER_FLAG,ne0,ne1,nj,i
+    integer :: no,depvar,nz,ne,SOLVER_FLAG,ne0,ne1,nj,i,iteration_counter
+    real(dp) :: elastance,ERR
+    logical :: converged
 
     sub_name = 'evaluate_prq'
     call enter_exit(sub_name,1)
@@ -80,6 +82,26 @@ elseif((bc_type.EQ.'flow').AND.(inlet_flow.EQ.0))then
 	print *, "please set inlet flow"
 	call exit(1)
 endif
+
+if (vessel_type.eq.'rigid') then !Basic model no elasticity
+elseif (vessel_type.eq.'elastic') then !Model for vessel elasticity
+    !elasticity_parameters(1)=6.67e3_dp!G0 (Pa)
+    !elasticity_parameters(2)=1.0_dp!elasticity_parameters(2)
+    write(*,*) 'elastic vessels'
+else
+    print *,"unsupported vessel_type",vessel_type
+    call exit(1)
+endif
+
+if (rheology_type.eq.'constant_visc') then !Basic model, no rheology dependent viscosity
+elseif (rheology_type.eq.'pries_network') then
+    elastance=5.0e5_dp!(Pa)
+else
+    print *,"unsupported rheology_type",rheology_type
+    call exit(1)
+endif
+
+
 
 if(diagnostics_level.GT.1)then
 	print *, "mesh_type=",mesh_type
@@ -125,6 +147,10 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2)) !gamma:Pedley correction factor
     allocate (prq_solution(mesh_dof), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for prq_solution array ***"
     prq_solution=0.0_dp !initialise
+    if(vessel_type.eq.'elastic')then
+        allocate (prq_solution_old(mesh_dof), STAT = AllocateStatus)
+        if (AllocateStatus /= 0) STOP "*** Not enough memory for prq_solution_old array ***"
+    endif
     allocate (FIX(mesh_dof), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for FIX array ***"
 
@@ -179,23 +205,80 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2)) !gamma:Pedley correction factor
          solver_solution(no)=prq_solution(depvar)
       endif
    enddo !mesh_dof          
-          
-!! ----CALL SOLVER----
-   call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
-         solver_solution, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
-   if(SOLVER_FLAG == 0)then 
-       print *, 'Warning: pmgmres has reached max iterations. Solution may not be valid if this warning persists'
-   elseif(SOLVER_FLAG ==2)then
-       print *, 'ERROR: pmgmres has failed to converge'
-   endif
-!!--TRANSFER SOLVER SOLUTIONS TO FULL SOLUTIONS
-   no=0
-   do depvar=1,mesh_dof
-       if(.NOT.FIX(depvar)) THEN
-           no=no+1
-		   prq_solution(depvar)=solver_solution(no) !pressure & flow solutions
+   if(vessel_type.eq."rigid")then
+       !! ----CALL SOLVER----
+       call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
+             solver_solution, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
+       if(SOLVER_FLAG == 0)then
+           print *, 'Warning: pmgmres has reached max iterations. Solution may not be valid if this warning persists'
+       elseif(SOLVER_FLAG ==2)then
+           print *, 'ERROR: pmgmres has failed to converge'
        endif
-   enddo
+       !!--TRANSFER SOLVER SOLUTIONS TO FULL SOLUTIONS
+       no=0
+       do depvar=1,mesh_dof
+           if(.NOT.FIX(depvar)) THEN
+               no=no+1
+		       prq_solution(depvar)=solver_solution(no) !pressure & flow solutions
+           endif
+       enddo
+    else
+        iteration_counter = 0
+        converged = .False.
+        !need an interative loop as problem is non-linear
+        do while(.NOT.CONVERGED)
+        if (iteration_counter.lt.15)then
+            iteration_counter = iteration_counter + 1
+            !! ----CALL SOLVER----
+            call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
+               solver_solution, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
+            if(SOLVER_FLAG == 0)then
+               print *, 'Warning: pmgmres has reached max iterations. Solution may not be valid if this warning persists'
+            elseif(SOLVER_FLAG ==2)then
+               print *, 'ERROR: pmgmres has failed to converge'
+            endif
+
+            !!--CALCULATE_ERROR
+            ERR=0.0_dp
+            no=0
+            do depvar=1,mesh_dof
+                if(.NOT.FIX(depvar)) THEN
+                    no=no+1
+                    prq_solution_old(depvar)=prq_solution(depvar) !temp storage of previous solution
+                    prq_solution(depvar)=solver_solution(no) !new pressure & flow solutions
+                    if(DABS(prq_solution(depvar)).GT.0.0_dp)THEN
+                       ERR=ERR+(prq_solution(depvar)-prq_solution_old(depvar))**2.0_dp/prq_solution(depvar)**2.0_dp
+                    endif
+                endif
+            enddo !no2
+            ERR=ERR/mesh_dof!sum of error divided by no of unknown depvar
+
+            if(ERR.LE.1.0e-6_dp.AND.(iteration_counter.gt.1))then
+                converged=.TRUE.
+                print *,"Convergence achieved after",iteration_counter,"iterations",ERR
+            else !if error not converged
+                print *,"Not converged, error =",ERR
+                !!-- UPDATE RESISTANCE OF EACH VESSEL IN THE TREE
+                if(vessel_type.eq.'elastic')then
+                    !Update vessel radii based on predicted pressures and then update resistance through tree
+                    call calculate_radius(depvar_at_node,prq_solution,mesh_dof,elastance)
+                    call calculate_resistance(viscosity,mesh_type)
+                endif
+            endif !ERR not converged
+
+
+            !!--TRANSFER SOLVER SOLUTIONS TO FULL SOLUTIONS
+            no=0
+            do depvar=1,mesh_dof
+               if(.NOT.FIX(depvar)) THEN
+                   no=no+1
+                   prq_solution(depvar)=solver_solution(no) !pressure & flow solutions
+               endif
+            enddo
+          endif
+        enddo !iterations
+
+    endif
     
 !need to write solution to element/nodal fields for export
     call map_solution_to_mesh(prq_solution,depvar_at_elem,depvar_at_node,mesh_dof)
@@ -206,6 +289,9 @@ gamma = 0.327_dp !=1.85/(4*sqrt(2)) !gamma:Pedley correction factor
     deallocate (depvar_at_elem, STAT = AllocateStatus)
     deallocate (depvar_at_node, STAT = AllocateStatus)
     deallocate (prq_solution, STAT = AllocateStatus)
+    if(vessel_type.eq.'elastic')then
+        deallocate (prq_solution_old, STAT = AllocateStatus)
+    endif
     deallocate (FIX, STAT = AllocateStatus)
     deallocate (solver_solution, STAT = AllocateStatus)
     deallocate (SparseCol, STAT = AllocateStatus)
@@ -283,6 +369,52 @@ depvar_at_elem,prq_solution,mesh_dof,mesh_type)
   endif
     call enter_exit(sub_name,2)
   end subroutine boundary_conditions
+
+!
+!####################################################################################
+!
+subroutine calculate_radius(depvar_at_node,prq_solution,mesh_dof,elastance)
+    use arrays,only: dp,num_nodes,num_elems,elem_nodes,elem_field
+    use indices
+    use diagnostics, only: enter_exit,get_diagnostics_level
+
+    integer, intent(in) :: mesh_dof
+    integer,intent(in) :: depvar_at_node(num_nodes,0:2,2)
+    real(dp),intent(in) ::  prq_solution(mesh_dof)
+    real(dp), intent(in) :: elastance
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    !local variables
+    integer :: ne,nn,np,ny
+    real(dp) :: Ptm,h,R0
+
+  sub_name = 'calculate_radius'
+  call enter_exit(sub_name,1)
+  call get_diagnostics_level(diagnostics_level)
+  do ne=1,num_elems
+      do nn=1,2
+        if(nn.eq.1) np=elem_nodes(1,ne)
+        if(nn.eq.2) np=elem_nodes(2,ne)
+        ny=depvar_at_node(np,0,1)
+        R0 = elem_field(ne_radius,ne)
+        if(R0.gt.0.125_dp)then
+            h=0.2_dp*R0
+        else
+            h=0.8_dp*R0
+        endif
+        Ptm=prq_solution(ny)-11.0_dp*133.0_dp
+        if(Ptm.lt.0.0_dp) Ptm=0.0_dp
+        if(nn.eq.1) elem_field(ne_radius_in,ne)=R0+3.0_dp*R0**2*Ptm/(4.0_dp*elastance*h)
+        if(nn.eq.2) elem_field(ne_radius_out,ne)=R0+3.0_dp*R0**2*Ptm/(4.0_dp*elastance*h)
+      enddo
+
+  enddo
+
+
+
+  call enter_exit(sub_name,2)
+end subroutine calculate_radius
 !
 !###################################################################################
 !
@@ -299,6 +431,7 @@ subroutine calculate_resistance(viscosity,mesh_type)
     real(dp) :: resistance,zeta
     character(len=60) :: sub_name
     integer :: diagnostics_level
+    real(dp) :: radius
 
   sub_name = 'calculate_resistance'
   call enter_exit(sub_name,1)
@@ -309,9 +442,10 @@ subroutine calculate_resistance(viscosity,mesh_type)
        !ne=elems(noelem)
        np1=elem_nodes(1,ne)
        np2=elem_nodes(2,ne)
+       radius = (elem_field(ne_radius_in,ne)+elem_field(ne_radius_out,ne))/2.0_dp
        ! element Poiseuille (laminar) resistance in units of Pa.s.mm-3        
-       resistance = 8.d0*viscosity*elem_field(ne_length,ne)/ &
-            (PI*elem_field(ne_radius,ne)**4) !laminar resistance
+       resistance = 8.0_dp*viscosity*elem_field(ne_length,ne)/ &
+            (PI*radius**4.0_dp) !laminar resistance
        elem_field(ne_resist,ne) = resistance
        if(diagnostics_level.GT.1)then
        		print *,"TESTING RESISTANCE: element",ne,"resistance",elem_field(ne_resist,ne),"radius",elem_field(ne_radius,ne)
