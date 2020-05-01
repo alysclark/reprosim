@@ -39,11 +39,7 @@ contains
   ! given. The umbilical arterial vessels will not be copied. 
   ! A single umbilical vein will be created instead.
  
-    use arrays,only: dp,elems,elem_cnct,elem_direction,elem_field,&
-         elem_nodes,elem_ordrs,elem_symmetry,elems_at_node,&
-         nodes,node_xyz,num_elems,&
-         num_nodes,num_units,units,num_arterial_elems,umbilical_inlets, &
-         umbilical_outlets, art_ven_elem_map
+    use arrays
     use indices
     use other_consts,only: PI,MAX_STRING_LEN
     use diagnostics, only: enter_exit,get_diagnostics_level
@@ -597,6 +593,19 @@ contains
     		enddo
     		 
     endif !diagnostics_level
+
+    min_art=1
+    ne=1
+    do while(elem_field(ne_group,ne).eq.0.0_dp)
+        max_art=ne
+        ne=ne+1
+    enddo
+    min_ven=ne
+    do while(elem_field(ne_group,ne).eq.2.0_dp)
+        max_ven=ne
+        ne=ne+1
+    enddo
+
        
     deallocate(np_map)
     call enter_exit(sub_name,2)
@@ -680,14 +689,10 @@ contains
   !*Description:* Calculates the effective length of a capillary unit based on its total resistance
   ! and assumed radius, given the number of terminal convolute connections and the number of
   ! generations of symmetric intermediate villous branches 
-    use arrays,only: dp,num_units,units,elem_field,elem_direction, &
-                     node_xyz,elem_nodes,elem_cnct,num_conv,num_conv_gen, &
-                     cap_resistance,terminal_resistance,terminal_length, &
-                     cap_radius,is_capillary_unit,total_cap_volume,total_cap_surface_area, &
-                     num_elems
+    use arrays
     use diagnostics, only: enter_exit,get_diagnostics_level
     use other_consts, only: PI
-    use indices, only: ne_length,ne_radius,ne_vol
+    use indices
     implicit none
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_CALC_CAPILLARY_UNIT_LENGTH" :: CALC_CAPILLARY_UNIT_LENGTH
 
@@ -775,7 +780,7 @@ contains
 
       terminal_resistance = terminal_resistance + cap_resistance/2**j
     enddo
-
+    write(*,*) 'terminal resistance', terminal_resistance
     terminal_length = terminal_resistance*(PI*cap_unit_radius**4)/(8.d0*viscosity)
 
     total_cap_volume = capillary_unit_vol * num_units/1000 !in cm**3
@@ -798,6 +803,8 @@ contains
       is_capillary_unit(nc) = 1
       !update element radius
       elem_field(ne_radius,nc) = cap_unit_radius
+      elem_field(ne_radius_in,nc) = cap_unit_radius
+      elem_field(ne_radius_out,nc) = cap_unit_radius
       !update element length   
       elem_field(ne_length,nc) = terminal_length
       !update element direction
@@ -813,6 +820,8 @@ contains
             elem_field(ne_length,nc)
 
     enddo
+
+    write(*,*) 'terminal length', terminal_length
 
     call enter_exit(sub_name,2)
 
@@ -1376,13 +1385,14 @@ contains
 
 
      if(diagnostics_level.GT.1)then
-	print *,"element order for element",ne,"=",elem_ordrs(nindex,ne)
+	    print *,"element order for element",ne,"=",elem_ordrs(nindex,ne)
      	print *,"radius for element",ne,"=",elem_field(ne_radius,ne)
      	print *,"radius in for element",ne,"=",elem_field(ne_radius_in,ne)
      	print *,"radius out for element",ne,"=",elem_field(ne_radius_out,ne)
         print *,"volume for element",ne,"=",elem_field(ne_vol,ne)
      endif
     enddo
+
 
     call enter_exit(sub_name,2)
 
