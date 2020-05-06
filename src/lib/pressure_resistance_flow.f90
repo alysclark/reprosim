@@ -101,6 +101,8 @@ endif
 if (rheology_type.eq.'constant_visc') then !Basic model, no rheology dependent viscosity
 elseif (rheology_type.eq.'pries_network') then
     iterative = .True.
+elseif(rheology_type.eq.'pries_vessel') then
+    iterative = .True.
 else
     print *,"unsupported rheology_type",rheology_type
     call exit(1)
@@ -268,8 +270,8 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
             else !if error not converged
                 print *,"Not converged, error =",ERR
                 !!-- UPDATE RESISTANCE OF EACH VESSEL IN THE TREE
-                if (rheology_type.eq.'pries_network') then
-                   call calculate_viscosity_factor
+                if ((rheology_type.eq.'pries_network').or.(rheology_type.eq.'pries_vessel')) then
+                   call calculate_viscosity_factor(rheology_type)
                 endif
                 if(vessel_type.eq.'elastic')then
                     !Update vessel radii based on predicted pressures and then update resistance through tree
@@ -277,21 +279,27 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
                     call calculate_resistance(viscosity,mesh_type)
                 endif
             endif !ERR not converged
-            do nu = 1,10
+            if(converged)then
+             open(10, file='micro_flow_results.out', status='replace')
+            endif
+            do nu = 1,num_units
               ne = units(nu)
               nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
-
               np1 = elem_nodes(1,nc)
               np2 = elem_nodes(2,nc)
-              write(*,*) ne,np1,np2
-
               P1=prq_solution(depvar_at_node(np1,0,1)) !pressure at start node of capillary element
               P2=prq_solution(depvar_at_node(np2,0,1))!pressure at end node of capillary element
-              write(*,*) ne,np1,np2,P1,P2
-              call capillary_resistance(nc,vessel_type,rheology_type,P1,P2,cap_res)
-              write(*,*) 'resistances',cap_res,elem_field(ne_resist,ne)
+              if(converged)then
+                call capillary_resistance(nc,vessel_type,rheology_type,P1,P2,cap_res,.True.)
+              else
+                call capillary_resistance(nc,vessel_type,rheology_type,P1,P2,cap_res,.False.)
 
+              endif
+              elem_field(ne_resist,nc) = cap_res
            enddo
+           if(converged)then
+             close(10)
+           endif
 
             !!--UPDATE RESISTANCE IN SOLUTION MATRICES
             do ne=1,num_elems !update for all ne
@@ -487,11 +495,9 @@ subroutine calculate_resistance(viscosity,mesh_type)
        np2=elem_nodes(2,ne)
        radius = (elem_field(ne_radius_in,ne)+elem_field(ne_radius_out,ne))/2.0_dp
        ! element Poiseuille (laminar) resistance in units of Pa.s.mm-3   '
-       if(ne.lt.10) write(*,*) elem_field(ne_viscfact,ne)
        resistance = 8.0_dp*viscosity*elem_field(ne_viscfact,ne)*elem_field(ne_length,ne)/ &
             (PI*radius**4.0_dp) !laminar resistance
        elem_field(ne_resist,ne) = resistance
-       if(is_capillary_unit(ne).eq.1) write(*,*) ne, resistance
        if(diagnostics_level.GT.1)then
        		print *,"TESTING RESISTANCE: element",ne,"resistance",elem_field(ne_resist,ne),"radius",elem_field(ne_radius,ne)
        endif
@@ -573,15 +579,11 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
    print *, "Total capillary surface area (cm**2) = ", total_cap_surface_area    
 
    total_vasc_volume = 0.0_dp
-   !do ne = 1,num_elems
-   !      write(*,*) 'running thro elts',ne,ne_vol,is_capillary_unit(ne),elem_field(ne_vol,ne)
-   !      write(*,*) total_vasc_volume
-   !      if(is_capillary_unit(ne).eq.0)then
-   !               write(*,*) total_vasc_volume
-   !         total_vasc_volume = total_vasc_volume + elem_field(ne_vol,ne)
-   !      endif
-   !      write(*,*) total_vasc_volume
-   !enddo
+   do ne = 1,num_elems
+         if(is_capillary_unit(ne).eq.0)then
+            total_vasc_volume = total_vasc_volume + elem_field(ne_vol,ne)
+         endif
+   enddo
    venous_vasc_volume = total_vasc_volume - arterial_vasc_volume
    print *, "Venous vascular volume (cm**3) = ",venous_vasc_volume/1000
 
@@ -702,7 +704,6 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
    print *, "Arterial vessel diameter (mm) by Strahler order:"
    print *, "Strahler_order,number_of_elements,mean_diameter,min_diameter,max_diameter,std"
 
-   write(*,*) 'maxst',max_strahler
    do order=1, max_strahler
       mean_diameter = sum(art_diameter_by_strahler(order,:))/branch_count(order)
       std_diameter = 0
@@ -725,7 +726,6 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
       ven_diameter_by_strahler = 0
       branch_count = 0
       do ne=num_arterial_elems+1,num_elems
-      write(*,*) 'another is_capillary_unit_call'
          if(is_capillary_unit(ne).eq.0)then !if the element is not a capillary
             ne_order = strahler_orders(ne)
 	    if(ne_order.ge.1)then
@@ -735,7 +735,6 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
                branch_count(ne_order) = no_branches
 	    endif
          endif
-               write(*,*) 'made it past is_capillary_unit_call'
       enddo
       print *, "Venous vessel diameter (mm) by Strahler order:"
       print *, "Strahler_order,number_of_elements,mean_diameter,min_diameter,max_diameter,std"
@@ -940,11 +939,13 @@ end subroutine calculate_stats
 !
 !###################################################################################
 !
-subroutine calculate_viscosity_factor
+subroutine calculate_viscosity_factor(rheology_type)
     use arrays
     use other_consts
     use indices
     use diagnostics, only: enter_exit,get_diagnostics_level
+
+    character(len=60), intent(in) :: rheology_type
 
 !local variables
     integer :: ne,nc,ne_d1,ne_d22
@@ -985,16 +986,16 @@ subroutine calculate_viscosity_factor
        !     print *,"TESTING RESISTANCE: element",ne,"resistance",elem_field(ne_resist,ne),"radius",elem_field(ne_radius,ne)
        !endif
     elem_field(ne_hb,:) = 0.45_dp !Normal_fetal hematocrit
-    controlhb = 0.45_dp
+    !controlhb = 0.45_dp
 
     do ne = 1,num_elems
       radius = (elem_field(ne_radius_in,ne) + elem_field(ne_radius_out,ne))/2.0_dp*1000.0_dp !mm to um
-      beta = 4.0_dp/(1+exp(-0.0593_dp*(2.0_dp*radius-6.74_dp)))
-      elem_field(ne_viscfact,ne) = (1.0_dp + (exp(elem_field(ne_hb,ne)*beta)-1.0_dp)/(exp(controlhb*beta)-1.0_dp) &
-          *(110.0_dp*exp(-2.848_dp*radius) + 3.0_dp - 3.45_dp*exp(-0.07_dp*radius)))/4.0_dp
-      if (elem_field(ne_viscfact,ne).gt.1.0_dp)then
-          write(*,*) 'viscfact',elem_field(ne_viscfact,ne),elem_field(ne_radius,ne)
-      endif
+      call viscosity_from_radius(radius,elem_field(ne_hb,ne),elem_field(ne_viscfact,ne))
+      !beta = 4.0_dp/(1+exp(-0.0593_dp*(2.0_dp*radius-6.74_dp)))
+     ! write(*,*) elem_field(ne_viscfact,ne)
+     ! elem_field(ne_viscfact,ne) = (1.0_dp + (exp(elem_field(ne_hb,ne)*beta)-1.0_dp)/(exp(controlhb*beta)-1.0_dp) &
+     !     *(110.0_dp*exp(-2.848_dp*radius) + 3.0_dp - 3.45_dp*exp(-0.07_dp*radius)))/4.0_dp
+      !write(*,*) elem_field(ne_viscfact,ne)
     enddo
 
     call enter_exit(sub_name,2)
@@ -1103,7 +1104,7 @@ end subroutine calc_depvar_maps
 !
 !##################################################################
 !
-subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_out,resistance)
+subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_out,resistance,export_terminals)
     use indices
     use arrays
     use diagnostics
@@ -1114,6 +1115,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     real(dp), intent(in) :: press_in
     real(dp), intent(in) :: press_out !When considering rigid vessels these can be dummy arguments, unless exporting, as resistance does not depend on pressure
     real(dp), intent(out) :: resistance
+    logical, intent(in) :: export_terminals
     !Local variables to be passed in
     integer :: numconvolutes,numgens
     !Actual local variables
@@ -1125,12 +1127,19 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     integer, allocatable ::SparseRow(:)
     real(dp),allocatable :: RHS(:)
     real(dp),allocatable :: Solution(:)
+    real(dp), allocatable :: SolutionNew(:)
     real(dp),allocatable :: SparseVal(:)
+    real(dp),allocatable :: original_resist(:)
+    integer, allocatable :: update_resist(:,:)
     integer :: AllocateStatus
     integer :: SOLVER_FLAG
     integer :: ng,nc,i,i2,nnz,j,curgen,checkgen,nart,nv
     real(dp) :: int_length,int_radius,cap_length,cap_rad,seg_length,mu,R_seg,R_cap,divider
     real(dp) :: int_rad_ain,int_rad_aout,int_rad_vin, int_rad_vout,int_radius_gen
+    integer :: update_mu,update_rad,count_its
+    real(dp) :: visc_factor,p_in,p_out,r_in,r_out,r_ave,h,elastance,err
+    logical :: update_resistance = .False.
+    logical :: converged = .False.
     character(len=60) :: sub_name
     integer :: diagnostics_level
     sub_name = 'capillary_resistance'
@@ -1144,20 +1153,42 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     cap_length=3.0_dp/numconvolutes!%mm %length of capillary convolutes
     cap_rad=(0.0144_dp/2.0_dp +0.0144_dp)/2.0_dp ! %radius of capillary convolutes
     seg_length=int_length/numconvolutes !; %lengh of each intermediate villous segment
-    mu=0.33600e-02_dp !; %viscosity
+    visc_factor = 1.0_dp
+    if(rheology_type.eq.'constant_visc')then
+      mu=0.33600e-02_dp !; %viscosity
+      update_mu = 0 !Do not need to update viscosity
+    else if(rheology_type.eq.'pries_network')then
+       mu=0.400e-02_dp !; %viscosity
+       update_mu = 2 ! Need to update viscosity (iteratively)
+    else if(rheology_type.eq.'pries_vessel')then
+      mu=0.400e-02_dp !; %viscosity
+      update_mu = 1 !Need to update viscosity, but not iteratively
+    else !should have been caught earlier, but default to simplest case
+      mu=0.33600e-02_dp !; %viscosity
+      update_mu = 0 !Do not need to update viscosity
+    endif
+    if(vessel_type.eq.'rigid')then
+      update_rad = 0
+    else
+      update_rad = 2
+    endif
 
     nart = elem_cnct(-1,1,nelem) !capillary unit is downstream of a terminal unit
     nv =  elem_cnct(1,1,nelem) !vein is downstream of the capillary
-    write(*,*)elem_field(ne_radius_out,nart),elem_field(ne_radius_in,nv)
-    int_rad_ain= elem_field(ne_radius_out,nart)
-    int_rad_vin = elem_field(ne_radius_in,nv) !mm radius of inlet intermediate villous (average of artery and vein)
+    int_rad_ain= elem_field(ne_radius,nart) !mm Unstrained radius of inlet villous
+    int_rad_vin = elem_field(ne_radius,nv) !mm radius of ouutlet intermediate villous
     int_rad_aout =  0.03_dp/2.0_dp ! mm radius of mature intermediate villous (average of artery and vein)
     int_rad_vout = 0.03
 
+    if(update_mu.eq.1) then
+      call viscosity_from_radius(int_radius*1000.0_dp,0.45_dp,visc_factor)
+    endif
+    R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius**4.0_dp)! %resistance of each intermediate villous segment
 
-    R_seg=(8.0_dp*mu*seg_length)/(pi*int_radius**4.0_dp)! %resistance of each intermediate villous segment
-    R_cap=(8.0_dp*mu*cap_length)/(pi*cap_rad**4.0_dp)!%resistance of each capillary convolute segment
-
+    if(update_mu.eq.1) then
+      call viscosity_from_radius(cap_rad*1000.0_dp,0.45_dp,visc_factor)
+    endif
+    R_cap=(8.0_dp*mu*visc_factor*cap_length)/(pi*cap_rad**4.0_dp)!%resistance of each capillary convolute segment
 
     p_unknowns = 2*numconvolutes*numgens
     q_unknowns = numgens*numconvolutes+1 !Only need to calculate convolute and total flows
@@ -1178,6 +1209,19 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     allocate (RHS(MatrixSize), STAT = AllocateStatus)
     if (AllocateStatus /= 0) STOP "*** Not enough memory for solver_solution array ***"
 
+    if((update_mu.eq.2).or.(update_rad.eq.2))then
+       allocate (update_resist(NonZeros,3), STAT = AllocateStatus)
+        if (AllocateStatus /= 0) STOP "*** Not enough memory for solver_solution array ***"
+        update_resistance = .True.
+        update_resist = 0
+       allocate (original_resist(NonZeros), STAT = AllocateStatus)
+        if (AllocateStatus /= 0) STOP "*** Not enough memory for solver_solution array ***"
+        original_resist = 0.0_dp
+        allocate (SolutionNew(MatrixSize), STAT = AllocateStatus)
+        if (AllocateStatus /= 0) STOP "*** Not enough memory for solver_solution array ***"
+
+    endif
+
     SparseCol=0
     SparseRow=0
     SparseVal=0.0_dp
@@ -1188,8 +1232,10 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     !Put matrix together
     do ng = 1, numgens
       int_radius_gen = int_rad_ain - (int_rad_ain-int_rad_aout)/(numgens*ng)
-      R_seg=(8.0_dp*mu*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
-      write(*,*) 'intrad',int_radius_gen
+     if(update_mu.eq.1) then
+      call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
+     endif
+      R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
       do nc = 1,numconvolutes
         i = (ng-1)*numconvolutes + nc !row number
         !outward branches (arteries)
@@ -1201,6 +1247,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
           nnz=nnz+1
           SparseCol(nnz) = MatrixSize
           SparseVal(nnz) = -R_seg/2.0_dp !divide by 2 because bifurcating here
+          if(update_resistance)then
+            update_resist(nnz,1) = 1 !indicating this one needs to be updated and is an artery
+            update_resist(nnz,2) = 1 !power for resistance division
+            update_resist(nnz,3) = i !segment that this resistance is associated with
+            original_resist(nnz) = SparseVal(nnz)
+          endif
           nnz = nnz+1
         else
           SparseCol(nnz) = i-1
@@ -1215,6 +1267,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
           do j = 1,i-1
             SparseCol(nnz) = p_unknowns + j
             SparseVal(nnz) = R_seg/divider
+            if(update_resistance)then
+              update_resist(nnz,1) = 1 !indicating this one needs to be updated and is an artery
+              update_resist(nnz,2) = ng !current generation
+              update_resist(nnz,3) = j !segment that this resistance is associated with
+              original_resist(nnz) = SparseVal(nnz)
+            endif
             nnz = nnz+1
             if(j.eq.(checkgen)*numconvolutes)then
               checkgen = checkgen + 1
@@ -1224,6 +1282,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
           enddo
           SparseCol(nnz) = MatrixSize
           SparseVal(nnz) = -R_seg/(2.0_dp**ng)
+          if(update_resistance)then
+            update_resist(nnz,1) = 1 !indicating this one needs to be updated and is an artery
+            update_resist(nnz,2) = ng !current generation
+            update_resist(nnz,3) = i !segment that this resistance is associated with
+            original_resist(nnz) = SparseVal(nnz)
+          endif
           nnz = nnz+1
         endif
         SparseRow(i+1) = nnz
@@ -1232,8 +1296,10 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
 
     do ng = 1, numgens
       int_radius_gen = int_rad_vin - (int_rad_vin-int_rad_vout)/(numgens*(numgens - ng + 1))
-      R_seg=(8.0_dp*mu*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
-      write(*,*) 'intrad',int_radius_gen
+      if(update_mu.eq.1) then
+        call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
+      endif
+      R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
       do nc = 1,numconvolutes
         i = (ng-1)*numconvolutes + nc !pointer to arteries row number
         !inward branches (veins)
@@ -1245,6 +1311,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
           RHS(i2) = press_out
           SparseCol(nnz) = MatrixSize
           SparseVal(nnz) = -R_seg/2.0_dp
+          if(update_resistance)then
+            update_resist(nnz,1) = 2 !indicating this one needs to be updated and is a vein
+            update_resist(nnz,2) = numgens - ng + 1 !current generation
+            update_resist(nnz,3) = i2 !segment that this resistance is associated with
+            original_resist(nnz) = SparseVal(nnz)
+          endif
           nnz = nnz + 1
         else
           SparseCol(nnz) = i2+1
@@ -1257,10 +1329,22 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
             if(j.eq.(p_unknowns - i2))then
               SparseCol(nnz) = p_unknowns+j
               SparseVal(nnz) = R_seg
+              if(update_resistance)then
+                update_resist(nnz,1) = 2 !indicating this one needs to be updated and is a vein
+                update_resist(nnz,2) = numgens - ng + 1 !current generation
+                update_resist(nnz,3) = i2 !segment that this resistance is associated with
+                original_resist(nnz) = SparseVal(nnz)
+              endif
               nnz = nnz+1
             else
               SparseCol(nnz) = p_unknowns + j
               SparseVal(nnz) = R_seg/divider
+              if(update_resistance)then
+                update_resist(nnz,1) = 2 !indicating this one needs to be updated and is a vein
+                update_resist(nnz,2) = numgens - ng + 1 !current generation
+                update_resist(nnz,3) = i2 !segment that this resistance is associated with
+                original_resist(nnz) = SparseVal(nnz)
+              endif
               nnz = nnz + 1
             endif
             if(j.eq.checkgen*numconvolutes)then
@@ -1272,6 +1356,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
           curgen = ceiling((dble(p_unknowns) - dble(i2))/dble(numconvolutes))
           SparseCol(nnz) = MatrixSize
           SparseVal(nnz) = -R_seg/(2.0_dp**curgen)
+          if(update_resistance)then
+            update_resist(nnz,1) = 2 !indicating this one needs to be updated and is a vein
+            update_resist(nnz,2) = numgens - ng + 1!current generation
+            update_resist(nnz,3) = i2 !segment that this resistance is associated with
+            original_resist(nnz) = SparseVal(nnz)
+          endif
           nnz = nnz+1
         endif
         SparseRow(i2+1) = nnz
@@ -1300,6 +1390,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
         i = (ng-1)*numconvolutes + nc !pointer to arteries row number
         SparseCol(nnz) = p_unknowns+i
         SparseVal(nnz) = 2.0_dp**ng
+        if(update_resistance)then
+            update_resist(nnz,1) = 3 !indicating this one needs to be updated and is a vein
+            update_resist(nnz,2) = ng!current generation
+            update_resist(nnz,3) = i !segment that this resistance is associated with
+            original_resist(nnz) = SparseVal(nnz)
+        endif
         nnz = nnz+1
       enddo
     enddo
@@ -1310,18 +1406,95 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
 
     call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
        Solution, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
-    !write(*,*) Solution
+
+    !We now have pressures - which we can use to update radii and resistances and re-solve
+    h=0.8_dp
+    elastance = 5.0e5_dp!
+    if(update_resistance)then
+       err = 0.0_dp
+       SolutionNew = Solution
+       count_its = 0
+       converged = .False.
+      do while (.not.converged)
+       do nnz = 1,NonZeros
+         if (update_resist(nnz,1).eq.1)then!artery
+           if(update_resist(nnz,3).eq.1)then
+             p_in = press_in -11.0_dp*133.0_dp
+           else
+             p_in  = Solution(update_resist(nnz,3)-1)-11.0_dp*133.0_dp
+           endif
+           p_out = Solution(update_resist(nnz,3))-11.0_dp*133.0_dp
+           int_radius_gen = int_rad_ain - (int_rad_ain-int_rad_aout)/(numgens*update_resist(nnz,2))
+           r_in = int_radius_gen+3.0_dp*int_radius_gen**2*p_in/(4.0_dp*elastance*h)
+           r_out = int_radius_gen+3.0_dp*int_radius_gen**2*p_out/(4.0_dp*elastance*h)
+           r_ave = (r_in + r_out)/2.0_dp
+           SparseVal(nnz) = original_resist(nnz)*(int_radius_gen**4.0_dp)/(r_ave**4.0_dp)
+         elseif (update_resist(nnz,1).eq.2)then!vein
+           if(update_resist(nnz,3).eq.p_unknowns)then
+             p_out = press_out -11.0_dp*133.0_dp
+           else
+             p_out  = Solution(update_resist(nnz,3)+1)-11.0_dp*133.0_dp
+           endif
+           p_in = Solution(update_resist(nnz,3))-11.0_dp*133.0_dp
+           int_radius_gen = int_rad_vin - (int_rad_vin-int_rad_vout)/(numgens*update_resist(nnz,2))
+           r_in = int_radius_gen+3.0_dp*int_radius_gen**2*p_in/(4.0_dp*elastance*h)
+           r_out = int_radius_gen+3.0_dp*int_radius_gen**2*p_out/(4.0_dp*elastance*h)
+           r_ave = (r_in + r_out)/2.0_dp
+           SparseVal(nnz) = original_resist(nnz)*(int_radius_gen**4.0_dp)/(r_ave**4.0_dp)
+         elseif (update_resist(nnz,1).eq.3)then!capillary
+           p_in = Solution(update_resist(nnz,3))-11.0_dp*133.0_dp
+           p_out = Solution(p_unknowns-update_resist(nnz,3)+1)-11.0_dp*133.0_dp
+           r_in = cap_rad+3.0_dp*cap_rad**2*p_in/(4.0_dp*elastance*h)
+           r_out = cap_rad+3.0_dp*cap_rad**2*p_out/(4.0_dp*elastance*h)
+           r_ave = (r_in + r_out)/2.0_dp
+           SparseVal(nnz) = original_resist(nnz)*(cap_rad**4.0_dp)/(r_ave**4.0_dp)
+         endif
+        enddo
+       call pmgmres_ilu_cr(MatrixSize, NonZeros, SparseRow, SparseCol, SparseVal, &
+         SolutionNew, RHS, 500, 500,1.d-5,1.d-4,SOLVER_FLAG)
+       do i = 1,MatrixSize
+         err = err + (SolutionNew(i) - Solution(i))**2.0_dp/Solution(i)**2.0_dp
+       enddo
+       err = err/MatrixSize
+       Solution = SolutionNew
+       if(err.lt.1.0e-6_dp)then
+         converged = .True.
+       else if (count_its.gt.20)then
+         converged = .True.
+       endif
+       count_its = count_its + 1
+       enddo !while
+    endif
 
     resistance = (press_in-press_out)/Solution(MatrixSize)
 
-    terminal_length = resistance*(PI*(0.03)**4)/(8.d0*mu)
-    write(*,*) terminal_length
+    terminal_length = resistance*(PI*(0.03_dp)**4.0_dp)/(8.0_dp*mu)
+
+    if(export_terminals)then
+       !write to file
+        WRITE(10,&
+              '(I6,X,2(F9.3,X),F9.5,X)', Advance = 'No' )&!,I6,X,4(F8.2,X),4(F8.5,X),&2(F10.2,X),3(F8.4,X),I6,X,2(F10.5,X),2(F8.4,X),&(F10.2,X))')&
+         nelem,press_in,press_out,Solution(MatrixSize)
+         do i = 1,MatrixSize-1
+            if(i.lt.p_unknowns)then
+              WRITE(10,'(F9.3,X)', Advance = 'No') Solution(i)
+            else
+              WRITE(10,'(F9.5,X)', Advance = 'No') Solution(i)
+            endif
+         enddo
+         write(10, '(2(I6,X))') numgens,numconvolutes
+    endif
 
     deallocate(SparseCol,STAT=AllocateStatus)
     deallocate(SparseVal,STAT=AllocateStatus)
     deallocate(SparseRow,STAT=AllocateStatus)
     deallocate(Solution,STAT=AllocateStatus)
     deallocate(RHS,STAT=AllocateStatus)
+    if(update_resistance)then
+       deallocate (update_resist, STAT = AllocateStatus)
+       deallocate (original_resist, STAT = AllocateStatus)
+       deallocate (SolutionNew, STAT = AllocateStatus)
+    endif
 
 
 
@@ -1370,9 +1543,8 @@ subroutine capillary_unit_length(num_convolutes,num_generations)
     nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
     vessel_type2='rigid'
     rheology_type2='constant_visc'
-    call capillary_resistance(nc,vessel_type2,rheology_type2,3000.0_dp,500.0_dp,terminal_resistance)
+    call capillary_resistance(nc,vessel_type2,rheology_type2,3000.0_dp,500.0_dp,terminal_resistance,.false.)
 
-    write(*,*) 'terminal resistance', terminal_resistance
     terminal_length = terminal_resistance*(PI*cap_unit_radius**4)/(8.d0*viscosity)
     is_capillary_unit = 0
 
@@ -1400,8 +1572,6 @@ subroutine capillary_unit_length(num_convolutes,num_generations)
             elem_field(ne_length,nc)
 
     enddo
-
-    write(*,*) 'terminal length', terminal_length
 
     call enter_exit(sub_name,2)
 
@@ -1662,8 +1832,39 @@ subroutine get_variable_offset(depvar,mesh_dof,FIX,offset)
 			offset = offset + 1
 		endif	
 	enddo
-	
+
 end subroutine get_variable_offset
+!
+!#################################################################3
+!
+subroutine viscosity_from_radius(radius,hb,visc_factor)
+    use indices
+    use arrays
+    use diagnostics
+
+    real(dp), intent(in) :: radius
+    real(dp), intent(in) :: hb
+    real(dp), intent(inout) :: visc_factor
+
+
+    real(dp) :: controlhb
+    real(dp) :: beta
+
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+  sub_name = 'map_flow_to_terminals'
+  call enter_exit(sub_name,1)
+  call get_diagnostics_level(diagnostics_level)
+
+
+  controlhb = 0.45_dp
+  beta = 4.0_dp/(1+exp(-0.0593_dp*(2.0_dp*radius-6.74_dp)))
+  visc_factor = (1.0_dp + (exp(hb*beta)-1.0_dp)/(exp(controlhb*beta)-1.0_dp) &
+          *(110.0_dp*exp(-2.848_dp*radius) + 3.0_dp - 3.45_dp*exp(-0.07_dp*radius)))/4.0_dp
+
+  call enter_exit(sub_name,2)
+end subroutine viscosity_from_radius
 !
 !##################################################################
 !
