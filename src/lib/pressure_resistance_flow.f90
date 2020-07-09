@@ -22,7 +22,8 @@ module pressure_resistance_flow
 contains
 !###################################################################################
 !
-subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,outlet_pressure)
+subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,&
+   outlet_pressure,occlude_frac,occlude_order)
 !*Description:* Solves for pressure and flow in a rigid or compliant tree structure  
 ! Model Types:                                                                     
 ! mesh_type: can be 'simple_tree' or 'full_plus_tube'. Simple_tree is the input arterial tree 
@@ -37,7 +38,8 @@ subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,i
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_EVALUATE_PRQ" :: EVALUATE_PRQ
   
     character(len=60), intent(in) :: mesh_type,bc_type,rheology_type,vessel_type
-    real(dp), intent(in) :: inlet_flow,inlet_pressure,outlet_pressure
+    real(dp), intent(in) :: inlet_flow,inlet_pressure,outlet_pressure,occlude_frac
+    integer, intent(in) :: occlude_order
     
     !local variables
     integer :: mesh_dof,depvar_types
@@ -180,7 +182,7 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
 !!update capillary lengths and radii
     call capillary_unit_length(6,3)
 !! Calculate resistance of each element
-    call calculate_resistance(viscosity,mesh_type)
+    call calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,0)
 
 !! Calculate sparsity structure for solution matrices
     !Determine size of and allocate solution vectors/matrices
@@ -276,7 +278,7 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
                 if(vessel_type.eq.'elastic')then
                     !Update vessel radii based on predicted pressures and then update resistance through tree
                     call calculate_radius(depvar_at_node,prq_solution,mesh_dof,elastance)
-                    call calculate_resistance(viscosity,mesh_type)
+                    call calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,iteration_counter)
                 endif
             endif !ERR not converged
             if(converged)then
@@ -470,26 +472,84 @@ end subroutine calculate_radius
 !
 !###################################################################################
 !
-subroutine calculate_resistance(viscosity,mesh_type)
+subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,iteration_counter)
     use arrays
     use other_consts
     use indices
     use diagnostics, only: enter_exit,get_diagnostics_level
     real(dp):: viscosity
+    real(dp) :: occlude_frac
+    integer :: iteration_counter
+    integer :: occlude_order
     character(len=60) :: mesh_type
 !local variables
-    integer :: ne,np1,np2
-    real(dp) :: resistance,zeta
+    integer :: ne,np1,np2,noelem,n,i,inlet_elem,inlet_counter
+    real(dp) :: resistance,zeta,random
+    integer :: seed(33)
     character(len=60) :: sub_name
-    integer :: diagnostics_level
+    logical :: elems_under_inlet1(num_arterial_elems)
+    logical :: elems_under_inlet2(num_arterial_elems)
+    integer :: diagnostics_level, remove_counter
+    integer :: remain_counter
     real(dp) :: radius
 
   sub_name = 'calculate_resistance'
   call enter_exit(sub_name,1)
   call get_diagnostics_level(diagnostics_level)
+  if(iteration_counter.eq.0)then
+  print *, 'working out which elements to occlude'
+    elems_under_inlet1 = .FALSE.
+    elems_under_inlet2 = .FALSE.
+    !!populate arrays of arterial elements under each inlet
+    !!elements directly downstream of the inlets
+    do inlet_counter=1,2
+       inlet_elem = umbilical_inlets(inlet_counter)
+       do n=1,elem_cnct_no_anast(1,0,inlet_elem)
+          if(inlet_counter.EQ.1)then
+             elems_under_inlet1(elem_cnct_no_anast(1,n,inlet_elem)) = .TRUE.
+          else
+             elems_under_inlet2(elem_cnct_no_anast(1,n,inlet_elem)) = .TRUE.
+          endif
+       enddo
+    enddo
+    do ne=1,num_arterial_elems
+       if(ALL(umbilical_inlets.NE.ne))then
+          !check which inlet the upstream elements are under and assign this element to the same inlet
+          do n=1,elem_cnct_no_anast(-1,0,ne)
+             if(elems_under_inlet1(elem_cnct_no_anast(-1,n,ne)))then
+             elems_under_inlet1(ne) = .TRUE.
+             elseif(elems_under_inlet2(elem_cnct_no_anast(-1,n,ne)))then
+                elems_under_inlet2(ne) = .TRUE.
+             endif
+          enddo
+       endif
+    enddo
+
+    remove_counter = 0
+    remain_counter = 0
+    n=8
+    seed = 1
+    call random_seed(size=n)
+    call random_seed(put=seed)
+  endif
 
 !Loop over all elements in model and define resistance for that branch.
     do ne=1,num_elems
+      if(iteration_counter.eq.0)then
+      if((elem_ordrs(no_sord,ne).eq.occlude_order).and.(noelem.lt.num_arterial_elems))then
+         !if(elems_under_inlet2(ne))then
+           remain_counter = remain_counter+1
+           call random_number(random)
+           if(random.lt.occlude_frac)then
+             remove_counter = remove_counter + 1
+             elem_field(ne_radius_in,ne) = 0.1_dp*elem_field(ne_radius_in,ne)
+             elem_field(ne_radius_out,ne) = 0.1_dp*elem_field(ne_radius_out,ne)
+             elem_field(ne_radius,ne) = 0.1_dp*elem_field(ne_radius,ne)
+           endif
+         !endif
+       endif
+
+      endif
        !ne=elems(noelem)
        np1=elem_nodes(1,ne)
        np2=elem_nodes(2,ne)
@@ -497,11 +557,14 @@ subroutine calculate_resistance(viscosity,mesh_type)
        ! element Poiseuille (laminar) resistance in units of Pa.s.mm-3   '
        resistance = 8.0_dp*viscosity*elem_field(ne_viscfact,ne)*elem_field(ne_length,ne)/ &
             (PI*radius**4.0_dp) !laminar resistance
+
+
        elem_field(ne_resist,ne) = resistance
        if(diagnostics_level.GT.1)then
        		print *,"TESTING RESISTANCE: element",ne,"resistance",elem_field(ne_resist,ne),"radius",elem_field(ne_radius,ne)
        endif
     enddo 
+    write(*,*) 'removing', remove_counter, remain_counter!,remove_counter/remain_counter
     call enter_exit(sub_name,2)
   end subroutine calculate_resistance
 !
@@ -833,6 +896,22 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
          endif   
       enddo
 
+       print *, "===========ANAST LOOK HERE============="
+       print *, "flow in element down stream of 1, elt 3 =", elem_field(ne_Qdot,3)
+       print *, "pressure in element down stream of 1, elt 3 =", node_field(nj_bv_press,534)
+       print *, "flow in element down stream of 34636, elt  = 34641", elem_field(ne_Qdot,34641)
+       print *, "pressure in element down stream of 1, elt 34636 =", node_field(nj_bv_press,428)
+       print *, "flow through anast e 34636", elem_field(ne_Qdot,34636)
+       print *, "pressure in anast from elt 1 =", node_field(nj_bv_press,59837)
+       print *, "pressure in anast from elt 1357 =", node_field(nj_bv_press,59838)
+       print *, "anast resist =", elem_field(ne_resist,34636)
+       print *, "==========NO ANAST LOOK HERE=============="
+       print *, "flow in element down stream of 1, elt 3 =", elem_field(ne_Qdot,2)
+       print *, "pressure in element down stream of 1, elt 3 =", node_field(nj_bv_press,535)
+       print *, "flow in element down stream of 34636, elt  = 34641", elem_field(ne_Qdot,828)
+       print *, "pressure in element down stream of 1, elt 34636 =", node_field(nj_bv_press,416)
+       print *, "==========END OPTIONS=============="
+
       !print number of terminal units under each inlet
       do inlet_counter=1,2
          inlet_elem = umbilical_inlets(inlet_counter)
@@ -1146,7 +1225,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
-    numconvolutes = 6
+    numconvolutes = 4
     numgens = 3
     int_length=1.5_dp!mm %Length of each intermediate villous
     int_radius=0.030_dp/2.0_dp!%radius of each intermediate villous

@@ -959,9 +959,10 @@ contains
        if(elem_cnct(-1,0,ne).EQ.0)then
           inlet_counter = inlet_counter + 1
           umbilical_inlets(inlet_counter) = ne
-          if(diagnostics_level.GE.1)then
+          !if(diagnostics_level.GE.1)then
              print *,"umbilical inlet element number =",ne
-          endif
+             elem_field(ne_length,ne) = elem_field(ne_length,ne)+500.0_dp
+          !endif
        endif
     enddo
     if(count(umbilical_inlets.NE.0).EQ.0)then
@@ -1405,9 +1406,8 @@ contains
   !   (default factor is 2). 
   ! Prints arterial and corresponding venous radii to a file.  
 
-    use arrays,only: dp,elem_field,num_elems,num_arterial_elems, elem_ordrs,&
-                 art_ven_elem_map
-    use indices,only: ne_length,ne_radius,no_sord,ne_vol 
+    use arrays
+    use indices
     use other_consts, only: MAX_FILENAME_LEN
     use diagnostics, only: enter_exit,get_diagnostics_level
     implicit none
@@ -1433,6 +1433,8 @@ contains
        if(ne_ven.GT.0)then
           art_radius = elem_field(ne_radius,ne_art)
           elem_field(ne_radius,ne_ven) = elem_field(ne_radius,ne_art) * factor
+          elem_field(ne_radius_in,ne_ven) = elem_field(ne_radius,ne_ven)
+          elem_field(ne_radius_out,ne_ven) = elem_field(ne_radius,ne_ven)
        endif
     enddo 
 
