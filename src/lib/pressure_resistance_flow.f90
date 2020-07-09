@@ -1225,7 +1225,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
-    numconvolutes = 4
+    numconvolutes = 6
     numgens = 3
     int_length=1.5_dp!mm %Length of each intermediate villous
     int_radius=0.030_dp/2.0_dp!%radius of each intermediate villous
