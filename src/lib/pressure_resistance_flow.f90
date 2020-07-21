@@ -536,9 +536,10 @@ subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,i
 !Loop over all elements in model and define resistance for that branch.
     do ne=1,num_elems
       if(iteration_counter.eq.0)then
-      if((elem_ordrs(no_sord,ne).eq.occlude_order).and.(noelem.lt.num_arterial_elems))then
-         !if(elems_under_inlet2(ne))then
+      if((elem_ordrs(no_sord,ne).eq.occlude_order).and.(ne.lt.num_arterial_elems))then
+            !write(*,*) ne,elem_ordrs(no_sord,ne)
            remain_counter = remain_counter+1
+           if(elems_under_inlet2(ne))then
            call random_number(random)
            if(random.lt.occlude_frac)then
              remove_counter = remove_counter + 1
@@ -546,7 +547,7 @@ subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,i
              elem_field(ne_radius_out,ne) = 0.1_dp*elem_field(ne_radius_out,ne)
              elem_field(ne_radius,ne) = 0.1_dp*elem_field(ne_radius,ne)
            endif
-         !endif
+         endif
        endif
 
       endif
