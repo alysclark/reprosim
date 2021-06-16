@@ -568,15 +568,22 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
 
 
   !calculate arterial vascular volume
-   arterial_vasc_volume = 0
+   arterial_vasc_volume = 0.0_dp
+   total_cap_volume = 0.0_dp
    do ne=1,num_arterial_elems
-      arterial_vasc_volume = arterial_vasc_volume + elem_field(ne_vol,ne)
+      arterial_vasc_volume = arterial_vasc_volume + PI*elem_field(ne_radius,ne)**2.0_dp*elem_field(ne_length, ne)
+   enddo
+
+   do ne = 1,num_elems
+      if(is_capillary_unit(ne).eq.1)then
+        total_cap_volume = total_cap_volume + elem_field(ne_vol,ne)
+      endif
    enddo
    print *, "Arterial elems count",num_arterial_elems
-   print *, "Arterial vascular volume (cm**3) = ",arterial_vasc_volume/1000.
+   print *, "Arterial vascular volume (cm**3) = ",arterial_vasc_volume/1000. !mm3 to cm3
    print *, "Capillary unit count =",num_units
-   print *, "Capillary volume (cm**3) = ",total_cap_volume
-   print *, "Total capillary surface area (cm**2) = ", total_cap_surface_area    
+   print *, "Capillary volume (cm**3) = ",total_cap_volume/1000.
+   print *, "Total capillary surface area (cm**2) = ", total_cap_surface_area*num_units/100.
 
    total_vasc_volume = 0.0_dp
    do ne = 1,num_elems
@@ -585,11 +592,11 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
          endif
    enddo
    venous_vasc_volume = total_vasc_volume - arterial_vasc_volume
-   print *, "Venous vascular volume (cm**3) = ",venous_vasc_volume/1000
+   print *, "Venous vascular volume (cm**3) = ",venous_vasc_volume/1000.
 
    !add capillary volume to total vascular volume
-   total_vasc_volume = total_vasc_volume/1000 + total_cap_volume !in cm3
-   print *, "Total vascular volume (cm**3) = ",total_vasc_volume
+   total_vasc_volume = total_vasc_volume + total_cap_volume
+   print *, "Total vascular volume (cm**3) = ",total_vasc_volume/1000.
 
    if(image_voxel_size.GT.0)then
       !volume of vessels with diameter smaller than image voxel size
@@ -1117,7 +1124,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     real(dp), intent(out) :: resistance
     logical, intent(in) :: export_terminals
     !Local variables to be passed in
-    integer :: numconvolutes,numgens
+    integer :: numconvolutes,numgens,numparallel
     !Actual local variables
     integer :: p_unknowns !Number of unknown pressures
     integer :: q_unknowns ! Number of unknown flows
@@ -1145,7 +1152,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     sub_name = 'capillary_resistance'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
-
+    numparallel = 6
     numconvolutes = 6
     numgens = 3
     int_length=1.5_dp!mm %Length of each intermediate villous
@@ -1154,6 +1161,8 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     cap_rad=(0.0144_dp/2.0_dp +0.0144_dp)/2.0_dp ! %radius of capillary convolutes
     seg_length=int_length/numconvolutes !; %lengh of each intermediate villous segment
     visc_factor = 1.0_dp
+    total_cap_volume =0.0_dp
+    total_cap_surface_area = 0.0_dp
     if(rheology_type.eq.'constant_visc')then
       mu=0.33600e-02_dp !; %viscosity
       update_mu = 0 !Do not need to update viscosity
@@ -1184,11 +1193,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
       call viscosity_from_radius(int_radius*1000.0_dp,0.45_dp,visc_factor)
     endif
     R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius**4.0_dp)! %resistance of each intermediate villous segment
-
+    total_cap_volume = total_cap_volume +  PI*int_radius**2.0_dp*seg_length
     if(update_mu.eq.1) then
       call viscosity_from_radius(cap_rad*1000.0_dp,0.45_dp,visc_factor)
     endif
-    R_cap=(8.0_dp*mu*visc_factor*cap_length)/(pi*cap_rad**4.0_dp)!%resistance of each capillary convolute segment
+    R_cap=(8.0_dp*mu*visc_factor*cap_length)/(pi*cap_rad**4.0_dp)/numparallel!%resistance of each capillary convolute segment
+
 
     p_unknowns = 2*numconvolutes*numgens
     q_unknowns = numgens*numconvolutes+1 !Only need to calculate convolute and total flows
@@ -1236,6 +1246,10 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
       call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
      endif
       R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
+      total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
+      total_cap_volume = total_cap_volume +   PI*cap_rad**2.0_dp*cap_length*numconvolutes*numparallel
+      total_cap_surface_area = 2.0_dp*PI*cap_rad*cap_length*numconvolutes*numparallel
+
       do nc = 1,numconvolutes
         i = (ng-1)*numconvolutes + nc !row number
         !outward branches (arteries)
@@ -1300,6 +1314,8 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
         call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
       endif
       R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
+      total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
+
       do nc = 1,numconvolutes
         i = (ng-1)*numconvolutes + nc !pointer to arteries row number
         !inward branches (veins)
@@ -1496,7 +1512,8 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
        deallocate (SolutionNew, STAT = AllocateStatus)
     endif
 
-
+    elem_field(ne_vol,nelem) = 2.0_dp * total_cap_volume
+    total_cap_surface_area = 2.0_dp*total_cap_surface_area
 
     call enter_exit(sub_name,2)
 end subroutine capillary_resistance
