@@ -23,7 +23,7 @@ contains
 !###################################################################################
 !
 subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,&
-   outlet_pressure,occlude_frac,occlude_order)
+   outlet_pressure,occlude_frac,occlude_order,occlude_side)
 !*Description:* Solves for pressure and flow in a rigid or compliant tree structure  
 ! Model Types:                                                                     
 ! mesh_type: can be 'simple_tree' or 'full_plus_tube'. Simple_tree is the input arterial tree 
@@ -39,7 +39,7 @@ subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,i
   
     character(len=60), intent(in) :: mesh_type,bc_type,rheology_type,vessel_type
     real(dp), intent(in) :: inlet_flow,inlet_pressure,outlet_pressure,occlude_frac
-    integer, intent(in) :: occlude_order
+    integer, intent(in) :: occlude_order,occlude_side
     
     !local variables
     integer :: mesh_dof,depvar_types
@@ -182,7 +182,7 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
 !!update capillary lengths and radii
     call capillary_unit_length(6,3)
 !! Calculate resistance of each element
-    call calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,0)
+    call calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,occlude_side,0)
 
 !! Calculate sparsity structure for solution matrices
     !Determine size of and allocate solution vectors/matrices
@@ -278,7 +278,7 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
                 if(vessel_type.eq.'elastic')then
                     !Update vessel radii based on predicted pressures and then update resistance through tree
                     call calculate_radius(depvar_at_node,prq_solution,mesh_dof,elastance)
-                    call calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,iteration_counter)
+                    call calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,occlude_side,iteration_counter)
                 endif
             endif !ERR not converged
             if(converged)then
@@ -472,7 +472,7 @@ end subroutine calculate_radius
 !
 !###################################################################################
 !
-subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,iteration_counter)
+subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,occlude_side,iteration_counter)
     use arrays
     use other_consts
     use indices
@@ -481,6 +481,7 @@ subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,i
     real(dp) :: occlude_frac
     integer :: iteration_counter
     integer :: occlude_order
+    integer :: occlude_side
     character(len=60) :: mesh_type
 !local variables
     integer :: ne,np1,np2,noelem,n,i,inlet_elem,inlet_counter
@@ -539,18 +540,38 @@ subroutine calculate_resistance(viscosity,mesh_type,occlude_frac,occlude_order,i
       if((elem_ordrs(no_sord,ne).eq.occlude_order).and.(ne.lt.num_arterial_elems))then
             !write(*,*) ne,elem_ordrs(no_sord,ne)
            remain_counter = remain_counter+1
-           if(elems_under_inlet2(ne))then
-           call random_number(random)
-           if(random.lt.occlude_frac)then
-             remove_counter = remove_counter + 1
-             elem_field(ne_radius_in,ne) = 0.1_dp*elem_field(ne_radius_in,ne)
-             elem_field(ne_radius_out,ne) = 0.1_dp*elem_field(ne_radius_out,ne)
-             elem_field(ne_radius,ne) = 0.1_dp*elem_field(ne_radius,ne)
-           endif
-         endif
-       endif
+           if(occlude_side.eq.0)then!Occlude both sides
+           	call random_number(random)
+           	if(random.lt.occlude_frac)then
+             		remove_counter = remove_counter + 1
+             		elem_field(ne_radius_in,ne) = 0.1_dp*elem_field(ne_radius_in,ne)
+             		elem_field(ne_radius_out,ne) = 0.1_dp*elem_field(ne_radius_out,ne)
+             		elem_field(ne_radius,ne) = 0.1_dp*elem_field(ne_radius,ne)
+           	endif
+           elseif(occlude_side.eq.1)then
+           	if(elems_under_inlet1(ne))then
+           		call random_number(random)
+           		if(random.lt.occlude_frac)then
+             			remove_counter = remove_counter + 1
+             			elem_field(ne_radius_in,ne) = 0.1_dp*elem_field(ne_radius_in,ne)
+             			elem_field(ne_radius_out,ne) = 0.1_dp*elem_field(ne_radius_out,ne)
+             			elem_field(ne_radius,ne) = 0.1_dp*elem_field(ne_radius,ne)
+           		endif
+         	endif
+         else
+             	if(elems_under_inlet2(ne))then
+           		call random_number(random)
+           		if(random.lt.occlude_frac)then
+             			remove_counter = remove_counter + 1
+             			elem_field(ne_radius_in,ne) = 0.1_dp*elem_field(ne_radius_in,ne)
+             			elem_field(ne_radius_out,ne) = 0.1_dp*elem_field(ne_radius_out,ne)
+             			elem_field(ne_radius,ne) = 0.1_dp*elem_field(ne_radius,ne)
+           		endif
+         	endif
+         endif !occlude_side
+       endif!occlude order
 
-      endif
+      endif!iteration
        !ne=elems(noelem)
        np1=elem_nodes(1,ne)
        np2=elem_nodes(2,ne)

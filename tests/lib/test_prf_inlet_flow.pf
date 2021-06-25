@@ -17,7 +17,7 @@
     real(dp) :: s_ratio, inlet_rad
     character(LEN=60) :: mesh_type, bc_type, rheology_type,vessel_type,umbilical_elem_option
     real(dp) :: occ_f
-    integer :: occ_ordr
+    integer :: occ_ordr, occ_side
     real(dp) :: inlet_flow,inlet_pressure,outlet_pressure
     real(dp) :: test_elem_field(1,8) !(num_ne: num_elems)
     real(dp) :: test_node_field(1,8) !(num_nj : num_nodes)
@@ -62,7 +62,8 @@
     outlet_pressure = 2660.0_dp
     occ_f = 0.0_dp
     occ_ordr = 1
-    call evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,outlet_pressure,occ_f,occ_ordr)
+    occ_side = 0
+    call evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,outlet_pressure,occ_f,occ_ordr,occ_side)
       
     !populate test data
     call set_flow(test_elem_field) 
