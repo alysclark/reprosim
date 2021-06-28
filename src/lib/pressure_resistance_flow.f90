@@ -548,6 +548,8 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
                 cap_length,cof_var_cap_flow,inlet_flow,inlet_pressure,outlet_pressure, &
                 resistance,volume_fed_by_inlet,mean_terminal_flow1,mean_terminal_flow2,&
                 std_terminal_flow1,std_terminal_flow2,total_surface_area
+    real(dp) :: arterial_surface_area,arteriole_vasc_volume,arteriole_surface_area, &
+                total_capil_surface_area,total_capil_volume
     integer :: strahler_orders(num_elems)
     integer :: generations(num_elems)
     real(dp),allocatable :: diameter_by_strahler(:,:)
@@ -569,24 +571,48 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
 
   !calculate arterial vascular volume
    arterial_vasc_volume = 0.0_dp
-   total_cap_volume = 0.0_dp
+   arterial_surface_area = 0.0_dp
+   arteriole_vasc_volume = 0.0_dp
+   arteriole_surface_area = 0.0_dp
+
+   total_surface_area = 0.0_dp
+   total_capil_volume = 0.0_dp
+   total_capil_surface_area = 0.0_dp
+
    do ne=1,num_arterial_elems
       arterial_vasc_volume = arterial_vasc_volume + PI*elem_field(ne_radius,ne)**2.0_dp*elem_field(ne_length, ne)
-      total_surface_area = total_surface_area  + PI* 2.0_dp*elem_field(ne_radius,ne)*elem_field(ne_length, ne)
+      arterial_surface_area = arterial_surface_area  + PI* 2.0_dp*elem_field(ne_radius,ne)*elem_field(ne_length, ne)
    enddo
 
    do ne = 1,num_elems
       if(is_capillary_unit(ne).eq.1)then
-        total_cap_volume = total_cap_volume + elem_field(ne_vol,ne)
-        total_surface_area = total_surface_area + elem_field(ne_sa,ne)
+        arteriole_vasc_volume = arteriole_vasc_volume + elem_field(ne_vol_art,ne)
+        arteriole_surface_area = arteriole_surface_area + elem_field(ne_sa_art,ne)
+
+        total_capil_volume = total_capil_volume + elem_field(ne_vol,ne)
+        total_capil_surface_area = total_capil_surface_area + elem_field(ne_sa,ne)
       endif
    enddo
+   print *, "############ ARTERIES ###################"
    print *, "Arterial elems count",num_arterial_elems
-   print *, "Arterial vascular volume (cm**3) = ",arterial_vasc_volume/1000. !mm3 to cm3
-   print*, "Total pre-capillary surface area (cm**3) = ", total_surface_area/100.
+   print *, "Arterial vascular volume (cm**3 or ml) = ",arterial_vasc_volume/1000. !mm3 to cm3
+   print*, "Total pre-terminal surface area (cm**2) = ", arterial_surface_area/100.
+   print*, "Total pre-terminal surface area (m**2) = ", arterial_surface_area/(100.*10000.)
+   print *, "############ ARTERIES ###################"
+
+   print *, "############ ARTERIOLES ###################"
+   print *, "Arteriole vascular volume (cm**3 or ml) = ",arteriole_vasc_volume/1000. !mm3 to cm3
+   print*, "Arteriole surface area (cm**2) = ", arteriole_surface_area/100.
+   print*, "Arteriole surface area (m**2) = ", arteriole_surface_area/(100.*10000.)
+   print *, "############ ARTERIOLES ###################"
+
+   print *, "############ CAPILLARIES ###################"
    print *, "Capillary unit count =",num_units
-   print *, "Capillary volume (cm**3) = ",total_cap_volume/1000.
-   print *, "Total capillary surface area (cm**2) = ", total_cap_surface_area*num_units/100.
+   print *, "Capillary volume (cm**3) = ",total_capil_volume/1000.
+   print *, "Total capillary surface area (cm**2) = ", total_capil_surface_area/100.
+   print *, "Total capillary surface area (m**2) = ", total_capil_surface_area/(100.*10000.)
+   print *, "############ CAPILLARIES ###################"
+
 
    total_vasc_volume = 0.0_dp
    do ne = 1,num_elems
@@ -1148,7 +1174,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     real(dp) :: int_rad_ain,int_rad_aout,int_rad_vin, int_rad_vout,int_radius_gen
     integer :: update_mu,update_rad,count_its
     real(dp) :: visc_factor,p_in,p_out,r_in,r_out,r_ave,h,elastance,err
-    real(dp) :: total_unit_surface_area
+    real(dp) :: total_unit_surface_area,total_unit_volume
     logical :: update_resistance = .False.
     logical :: converged = .False.
     character(len=60) :: sub_name
@@ -1156,7 +1182,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     sub_name = 'capillary_resistance'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
-    numparallel = 6
+    numparallel = 1
     numconvolutes = 6
     numgens = 3
     int_length=1.5_dp!mm %Length of each intermediate villous
@@ -1165,9 +1191,18 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     cap_rad=(0.0144_dp/2.0_dp +0.0144_dp)/2.0_dp ! %radius of capillary convolutes
     seg_length=int_length/numconvolutes !; %lengh of each intermediate villous segment
     visc_factor = 1.0_dp
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !----INITIALISE VOLUMES----
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
     total_cap_volume =0.0_dp
+    total_unit_volume = 0.0_dp
     total_cap_surface_area = 0.0_dp
     total_unit_surface_area = 0.0_dp
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !--END INITIALISE VOLUMES--
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+
     if(rheology_type.eq.'constant_visc')then
       mu=0.33600e-02_dp !; %viscosity
       update_mu = 0 !Do not need to update viscosity
@@ -1250,10 +1285,12 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
       call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
      endif
       R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
-      total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
-      total_cap_volume = total_cap_volume +   PI*cap_rad**2.0_dp*cap_length*numconvolutes*numparallel
-      total_cap_surface_area = 2.0_dp*PI*cap_rad*cap_length*numconvolutes*numparallel
-      total_unit_surface_area = total_unit_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes
+      !!!!!!!!!!!!!!!!!!!!!!!
+      !There are 2^ng vessels per level
+      total_unit_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes*(2.0_dp**(ng-1.0_dp))
+      total_cap_volume = total_cap_volume +   PI*cap_rad**2.0_dp*cap_length*numconvolutes*numparallel*(2.0_dp**(ng-1.0_dp))
+      total_cap_surface_area = 2.0_dp*PI*cap_rad*cap_length*numconvolutes*numparallel*(2.0_dp**(ng-1.0_dp))
+      total_unit_surface_area = total_unit_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes*(2.0_dp**(ng-1.0_dp))
 
 
       do nc = 1,numconvolutes
@@ -1320,7 +1357,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
         call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
       endif
       R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
-      total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
+      !total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
       !total_unit_surface_area = total_unit_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes
 
       do nc = 1,numconvolutes
@@ -1519,9 +1556,11 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
        deallocate (SolutionNew, STAT = AllocateStatus)
     endif
 
-    elem_field(ne_vol,nelem) = 2.0_dp * total_cap_volume
-    total_cap_surface_area = 2.0_dp*total_cap_surface_area
-    elem_field(ne_sa,nelem) = 2.0_dp*total_unit_surface_area + total_cap_surface_area
+    elem_field(ne_vol,nelem) = 2.0_dp * total_cap_volume !Total element volume in capillaries
+    elem_field(ne_sa,nelem) = 2.0_dp*total_cap_surface_area !Total surface area in capillaries
+    elem_field(ne_vol_art,nelem) = 2.0_dp*total_unit_volume
+    elem_field(ne_sa_art,nelem) = 2.0_dp*total_unit_surface_area
+
 
     call enter_exit(sub_name,2)
 end subroutine capillary_resistance
@@ -1593,8 +1632,8 @@ subroutine capillary_unit_length(num_convolutes,num_generations)
       enddo
 
       !update element volume
-      elem_field(ne_vol,nc) = PI * elem_field(ne_radius,nc)**2 * &
-            elem_field(ne_length,nc)
+      !elem_field(ne_vol,nc) = PI * elem_field(ne_radius,nc)**2 * &
+      !      elem_field(ne_length,nc)
 
     enddo
 
