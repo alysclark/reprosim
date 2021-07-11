@@ -25,7 +25,6 @@ contains
 subroutine evaluate_prq(mesh_type,bc_type,rheology_type,vessel_type,inlet_flow,inlet_pressure,outlet_pressure)
 !*Description:* Solves for pressure and flow in a rigid or compliant tree structure  
 ! Model Types:                                                                     
-! mesh_type: can be 'simple_tree' or 'full_plus_tube'. Simple_tree is the input arterial tree 
 ! without any special features at the terminal level
 ! 'full_plus_tube' creates a matching venous mesh and has arteries and veins connected by
 ! capillary units (capillaries are just tubes represented by an element)
@@ -547,7 +546,11 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
                 cof_var_terminal_flow,mean_terminal_flow,small_vessel_volume, diameter, &
                 cap_length,cof_var_cap_flow,inlet_flow,inlet_pressure,outlet_pressure, &
                 resistance,volume_fed_by_inlet,mean_terminal_flow1,mean_terminal_flow2,&
-                std_terminal_flow1,std_terminal_flow2,total_surface_area
+                std_terminal_flow1,std_terminal_flow2,total_surface_area,total_art_vol
+    real(dp) :: arterial_surface_area, arteriole_vasc_volume,arteriole_surface_area
+    real(dp) :: cap_vasc_volume, cap_surface_area,venule_vasc_volume, venule_surface_area,&
+      vein_vasc_volume, vein_surface_area
+
     integer :: strahler_orders(num_elems)
     integer :: generations(num_elems)
     real(dp),allocatable :: diameter_by_strahler(:,:)
@@ -569,36 +572,77 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
 
   !calculate arterial vascular volume
    arterial_vasc_volume = 0.0_dp
-   total_cap_volume = 0.0_dp
-   do ne=1,num_arterial_elems
+   arterial_surface_area = 0.0_dp
+   arteriole_vasc_volume = 0.0_dp
+   arteriole_surface_area = 0.0_dp
+   cap_vasc_volume = 0.0_dp
+   cap_surface_area = 0.0_dp
+   venule_vasc_volume = 0.0_dp
+   venule_surface_area = 0.0_dp
+   vein_vasc_volume = 0.0_dp
+   vein_surface_area = 0.0_dp
+   !total_cap_volume = 0.0_dp
+   !total_art_vol = 0.0_dp
+   do ne=66,num_arterial_elems !for now skipping the chorionic plate
       arterial_vasc_volume = arterial_vasc_volume + PI*elem_field(ne_radius,ne)**2.0_dp*elem_field(ne_length, ne)
-      total_surface_area = total_surface_area  + PI* 2.0_dp*elem_field(ne_radius,ne)*elem_field(ne_length, ne)
+      arterial_surface_area = arterial_surface_area  + PI* 2.0_dp*elem_field(ne_radius,ne)*elem_field(ne_length, ne)
+
    enddo
 
    do ne = 1,num_elems
       if(is_capillary_unit(ne).eq.1)then
-        total_cap_volume = total_cap_volume + elem_field(ne_vol,ne)
-        total_surface_area = total_surface_area + elem_field(ne_sa,ne)
+         arteriole_vasc_volume = arteriole_vasc_volume + elem_field(ne_artvol,ne)
+      	 arteriole_surface_area = arteriole_surface_area  + elem_field(ne_artsa,ne)
+	 cap_vasc_volume = cap_vasc_volume + elem_field(ne_vol,ne)
+      	 cap_surface_area = cap_surface_area  + elem_field(ne_sa,ne)
+         venule_vasc_volume = venule_vasc_volume + elem_field(ne_veinvol,ne)
+      	 venule_surface_area = venule_surface_area  + elem_field(ne_veinsa,ne)
+        !total_cap_volume = total_cap_volume + elem_field(ne_vol,ne)
+        !total_surface_area = total_surface_area + elem_field(ne_sa,ne)
+      else if(ne.gt.num_arterial_elems)then
+        vein_vasc_volume = vein_vasc_volume + PI*elem_field(ne_radius,ne)**2.0_dp*elem_field(ne_length, ne)
+      	vein_surface_area = vein_surface_area  + PI* 2.0_dp*elem_field(ne_radius,ne)*elem_field(ne_length, ne)
       endif
    enddo
-   print *, "Arterial elems count",num_arterial_elems
-   print *, "Arterial vascular volume (cm**3) = ",arterial_vasc_volume/1000. !mm3 to cm3
-   print*, "Total pre-capillary surface area (cm**3) = ", total_surface_area/100.
-   print *, "Capillary unit count =",num_units
-   print *, "Capillary volume (cm**3) = ",total_cap_volume/1000.
-   print *, "Total capillary surface area (cm**2) = ", total_cap_surface_area*num_units/100.
+   !print *, "Arterial elems count",num_arterial_elems
+   print *, "###################################################################"
+   print *, "Arterial vascular volume (cm**3/ml) = ",arterial_vasc_volume/1000. !mm3 to cm3
+   print*, "Arterial surface area (cm**3) = ", arterial_surface_area/100.
+   print*, "Arterial surface area (m**3) = ", arterial_surface_area/(100.*10000.)
+   print *, "###################################################################"
+   
+   print *, "###################################################################"
+   print *, "Arteriole vascular volume (cm**3/ml) = ",arteriole_vasc_volume/1000. !mm3 to cm3
+   print*, "Arteriole surface area (cm**3) = ", arteriole_surface_area/100.
+   print*, "Arteriole surface area (m**3) = ", arteriole_surface_area/(100.*10000.)
+   print *, "###################################################################"
+   
+   
+   print *, "###################################################################"
+   print *, "Capillary vascular volume (cm**3/ml) = ",cap_vasc_volume/1000. !mm3 to cm3
+   print*, "Capillary surface area (cm**3) = ", cap_surface_area/100.
+   print*, "Capillary surface area (m**3) = ", cap_surface_area/(100.*10000.)
+   print *, "###################################################################"
+   
+   
+   print *, "###################################################################"
+   print *, "Venule vascular volume (cm**3/ml) = ",venule_vasc_volume/1000. !mm3 to cm3
+   print*, "Venule surface area (cm**3) = ", venule_surface_area/100.
+   print*, "Venule surface area (m**3) = ", venule_surface_area/(100.*10000.)
+   print *, "###################################################################"
+   
+   print *, "###################################################################"
+   print *, "Vein vascular volume (cm**3/ml) = ",vein_vasc_volume/1000. !mm3 to cm3
+   print*, "Vein surface area (cm**3) = ", vein_surface_area/100.
+   print*, "Vein surface area (m**3) = ", vein_surface_area/(100.*10000.)
+   print *, "###################################################################"
 
    total_vasc_volume = 0.0_dp
-   do ne = 1,num_elems
-         if(is_capillary_unit(ne).eq.0)then
-            total_vasc_volume = total_vasc_volume + elem_field(ne_vol,ne)
-         endif
-   enddo
-   venous_vasc_volume = total_vasc_volume - arterial_vasc_volume
-   print *, "Venous vascular volume (cm**3) = ",venous_vasc_volume/1000.
+
 
    !add capillary volume to total vascular volume
-   total_vasc_volume = total_vasc_volume + total_cap_volume
+   total_vasc_volume = arterial_vasc_volume + arteriole_vasc_volume + cap_vasc_volume &
+      + cap_vasc_volume +  venule_vasc_volume + vein_vasc_volume
    print *, "Total vascular volume (cm**3) = ",total_vasc_volume/1000.
 
    if(image_voxel_size.GT.0)then
@@ -664,7 +708,7 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
    print *, "Flow (sum of all inlet flows) (mm3/s) =", inlet_flow
    print *, "Flow (sum of all inlet flows) (ml/min) =", inlet_flow * 0.06_dp
    print *, "Total vascular resistance (Pin-Pout)/Flow (Pa.s/mm**3) = ",resistance
-
+   
    !mean, min, max and std of branch diameter by Strahler order
 
    strahler_orders(:) = elem_ordrs(no_sord, :)
@@ -727,219 +771,13 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
             maxval(art_diameter_by_strahler(order,:)),",",std_diameter    
    enddo  
 
-   !Venous vessel diameter by Strahler order
+
    
-   !all elements - arterial elements - number of capillaries (the same as number of terminal units)
-   ven_elems = num_elems-num_arterial_elems-num_units 
-   if (ven_elems.GT.0)then
-      allocate(ven_diameter_by_strahler(max_strahler,ven_elems)) 
-      ven_diameter_by_strahler = 0
-      branch_count = 0
-      do ne=num_arterial_elems+1,num_elems
-         if(is_capillary_unit(ne).eq.0)then !if the element is not a capillary
-            ne_order = strahler_orders(ne)
-	    if(ne_order.ge.1)then
-               no_branches = branch_count(ne_order)
-               no_branches = no_branches + 1
-               ven_diameter_by_strahler(ne_order,no_branches) = elem_field(ne_radius,ne) * 2
-               branch_count(ne_order) = no_branches
-	    endif
-         endif
-      enddo
-      print *, "Venous vessel diameter (mm) by Strahler order:"
-      print *, "Strahler_order,number_of_elements,mean_diameter,min_diameter,max_diameter,std"
-      do order=1, max_strahler
-         mean_diameter = sum(ven_diameter_by_strahler(order,:))/branch_count(order)
-         std_diameter = 0
-         do branch=1,branch_count(order)
-            std_diameter = std_diameter + (ven_diameter_by_strahler(order,branch) - mean_diameter)**2
-         enddo
-         std_diameter = std_diameter/branch_count(order)
-         std_diameter = SQRT(std_diameter)
-         print *, order,",",branch_count(order),",",mean_diameter,",", &
-           minval(ven_diameter_by_strahler(order,:),MASK = ven_diameter_by_strahler(order,:) .GT.0),",", &
-            maxval(ven_diameter_by_strahler(order,:)),",",std_diameter    
-      enddo 
-
-   endif !(ven_elems.GT.0)
-  
-
-  !coefficient of variation for terminal flow
-   !standard deviation of flow devided by the mean flow
-   mean_terminal_flow = 0
-   do nu=1,num_units
-      ne = units(nu)
-      mean_terminal_flow = mean_terminal_flow + elem_field(ne_Qdot,ne)
-   enddo
-   mean_terminal_flow = mean_terminal_flow/num_units
-   std_terminal_flow = 0
-   do nu=1,num_units
-      ne = units(nu)
-      std_terminal_flow = std_terminal_flow + (elem_field(ne_Qdot,ne) - mean_terminal_flow)**2
-   enddo
-   std_terminal_flow = std_terminal_flow/num_units
-   std_terminal_flow = SQRT(std_terminal_flow)
-   cof_var_terminal_flow = std_terminal_flow/mean_terminal_flow
-   print *, "Coefficient of variation for terminal flow (%) = ", cof_var_terminal_flow * 100
-   print *, "Mean terminal flow (mm3/s) = ",mean_terminal_flow
-   print *, "Standard deviation of terminal flow (mm3/s) = ",std_terminal_flow
-
-   !terminal flow by generation
-   generations(:) = elem_ordrs(no_gen, :)
-   max_gen = maxval(generations)
-   allocate(terminal_flow_by_gen(max_gen,num_units))   
-   allocate(gen_branch_count(max_gen))
-   terminal_flow_by_gen = 0
-   gen_branch_count = 0
-
-   !print all terminal flows and their corresponding generations to a file 
-   open(10, file=FLOW_GEN_FILE, status="replace")
-   write(10,*) 'terminal_blood_flow,generation'
-   do nu=1,num_units
-      ne = units(nu)  
-      ne_order = generations(ne)
-      no_branches = gen_branch_count(ne_order)
-      no_branches = no_branches + 1
-      terminal_flow_by_gen(ne_order,no_branches) = elem_field(ne_Qdot,ne)
-      gen_branch_count(ne_order) = no_branches
-      write(10,*) elem_field(ne_Qdot,ne),',',ne_order
-   enddo
-   close(10)
-   print *, "Terminal flow (mm**3/s) by generation:"
-   print *, "Generation,number_of_terminal_units,mean_flow,min_flow,max_flow,std"
-   do order=1, max_gen
-      if(gen_branch_count(order).GT.0)then
-         mean_terminal_flow = sum(terminal_flow_by_gen(order,:))/gen_branch_count(order)
-         std_terminal_flow = 0
-         do branch=1,gen_branch_count(order)
-            std_terminal_flow = std_terminal_flow + (terminal_flow_by_gen(order,branch) - mean_terminal_flow)**2
-         enddo
-         std_terminal_flow = std_terminal_flow/gen_branch_count(order)
-         std_terminal_flow = SQRT(std_terminal_flow)
-         print *, order,",",gen_branch_count(order),",",mean_terminal_flow,",", &
-            minval(terminal_flow_by_gen(order,:),MASK = terminal_flow_by_gen(order,:) .GT.0),",", &
-            maxval(terminal_flow_by_gen(order,:)),",",std_terminal_flow
-      else
-	 print *,order,",0,0,0,0,0" 
-      endif 
-   
-   enddo
-
-   !if more than one inlet
-   if(count(umbilical_inlets.NE.0).GT.1)then
-
-      !print pressure and flow at each inlet
-      do inlet_counter=1,2
-         inlet_elem = umbilical_inlets(inlet_counter)
-         if(inlet_elem.GT.0)then
-            inlet_flow = elem_field(ne_Qdot,inlet_elem)
-            print *, "Flow at inlet element number ",inlet_elem, "(mm3/s) =",inlet_flow
-	    print *, "Flow at inlet element number ",inlet_elem, "(ml/min) =",inlet_flow * 0.06_dp
-            !get the first node
-            np1 = elem_nodes(1,inlet_elem)
-            inlet_pressure = node_field(nj_bv_press,np1)
-  	    print *, "Pressure at inlet node",np1,"inlet element",inlet_elem,"(Pa) =", inlet_pressure
-	    print *, "Pressure at inlet node",np1,"inlet element",inlet_elem,"(mmHg) =", inlet_pressure/133.322_dp	    
-         endif   
-      enddo
-
-      !print number of terminal units under each inlet
-      do inlet_counter=1,2
-         inlet_elem = umbilical_inlets(inlet_counter)
-	 print *, "Number of terminal units below inlet element",inlet_elem, "=",elem_units_below(inlet_elem)
-      enddo
-
-      elems_under_inlet1 = .FALSE.
-      elems_under_inlet2 = .FALSE.
-      !populate arrays of arterial elements under each inlet
-      !elements directly downstream of the inlets
-      do inlet_counter=1,2
-         inlet_elem = umbilical_inlets(inlet_counter)
-	 do n=1,elem_cnct_no_anast(1,0,inlet_elem)
-            if(inlet_counter.EQ.1)then     
-               elems_under_inlet1(elem_cnct_no_anast(1,n,inlet_elem)) = .TRUE.
-            else
-               elems_under_inlet2(elem_cnct_no_anast(1,n,inlet_elem)) = .TRUE.
-            endif
-         enddo
-      enddo
-      do ne=1,num_arterial_elems   
-         if(ALL(umbilical_inlets.NE.ne))then
-            !check which inlet the upstream elements are under and assign this element to the same inlet
-            do n=1,elem_cnct_no_anast(-1,0,ne)
-               if(elems_under_inlet1(elem_cnct_no_anast(-1,n,ne)))then
-	          elems_under_inlet1(ne) = .TRUE.
-               elseif(elems_under_inlet2(elem_cnct_no_anast(-1,n,ne)))then
-                  elems_under_inlet2(ne) = .TRUE.
-               endif
-            enddo
-         endif
-      enddo
-      !print arterial volume fed by each inlet
-      !volume under the first inlet
-      volume_fed_by_inlet = 0.0_dp
-      do ne=1,num_arterial_elems
-         if(elems_under_inlet1(ne))then
-            volume_fed_by_inlet = volume_fed_by_inlet + elem_field(ne_vol,ne)
-         endif
-      enddo
-      print *,"Arterial volume fed by inlet element",umbilical_inlets(1),"(cm3) =",volume_fed_by_inlet/1000
-      volume_fed_by_inlet = 0.0_dp
-      do ne=1,num_arterial_elems
-         if(elems_under_inlet2(ne))then
-            volume_fed_by_inlet = volume_fed_by_inlet + elem_field(ne_vol,ne)
-         endif
-      enddo
-      print *,"Arterial volume fed by inlet element",umbilical_inlets(2),"(cm3) =",volume_fed_by_inlet/1000  
-         
-      !coefficient of variation of terminal flow under each inlet
-      !standard deviation and mean flow under each inlet
-      mean_terminal_flow1 = 0
-      mean_terminal_flow2 = 0
-      num_units1 = 0
-      do nu=1,num_units
-         ne = units(nu)
-         if(elems_under_inlet1(ne))then
-            mean_terminal_flow1 = mean_terminal_flow1 + elem_field(ne_Qdot,ne)
-            num_units1 = num_units1 + 1
-         elseif(elems_under_inlet2(ne))then
-            mean_terminal_flow2 = mean_terminal_flow2 + elem_field(ne_Qdot,ne)
-         endif
-      enddo
-      mean_terminal_flow1 = mean_terminal_flow1/num_units1
-      mean_terminal_flow2 = mean_terminal_flow2/(num_units - num_units1)
-
-      std_terminal_flow1 = 0
-      std_terminal_flow2 = 0
-      do nu=1,num_units
-         ne = units(nu)
-         if(elems_under_inlet1(ne))then
-            std_terminal_flow1 = std_terminal_flow1 + (elem_field(ne_Qdot,ne) - mean_terminal_flow1)**2
-         elseif(elems_under_inlet2(ne))then
-            std_terminal_flow2 = std_terminal_flow2 + (elem_field(ne_Qdot,ne) - mean_terminal_flow2)**2
-         endif
-      enddo
-      std_terminal_flow1 = std_terminal_flow1/num_units1
-      std_terminal_flow1 = SQRT(std_terminal_flow1)
-      cof_var_terminal_flow = std_terminal_flow1/mean_terminal_flow1
-      print *, "Coefficient of variation for terminal flow (%) under inlet element", &
-                              umbilical_inlets(1),"=",cof_var_terminal_flow * 100
-      print *, "Mean terminal flow (mm3/s) under inlet element",umbilical_inlets(1),"=",mean_terminal_flow1
-      print *, "Standard deviation of terminal flow (mm3/s) under inlet element",umbilical_inlets(1),"=",&
-              std_terminal_flow1
-
-      std_terminal_flow2 = std_terminal_flow2/(num_units - num_units1)
-      std_terminal_flow2 = SQRT(std_terminal_flow2)
-      cof_var_terminal_flow = std_terminal_flow2/mean_terminal_flow2
-      print *, "Coefficient of variation for terminal flow (%) under inlet element", &
-                              umbilical_inlets(2),"=",cof_var_terminal_flow * 100
-      print *, "Mean terminal flow (mm3/s) under inlet element",umbilical_inlets(2),"=",mean_terminal_flow2
-      print *, "Standard deviation of terminal flow (mm3/s) under inlet element",umbilical_inlets(2),"=",&
-                std_terminal_flow2
-
-   endif
 
    deallocate (is_capillary_unit, STAT = AllocateStatus)
+   deallocate(diameter_by_strahler, STAT = AllocateStatus)
+   deallocate(branch_count, STAT = AllocateStatus)
+   deallocate(art_diameter_by_strahler, STAT = AllocateStatus)
 
 
    call enter_exit(sub_name,2)
@@ -1147,27 +985,43 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     real(dp) :: int_length,int_radius,cap_length,cap_rad,seg_length,mu,R_seg,R_cap,divider
     real(dp) :: int_rad_ain,int_rad_aout,int_rad_vin, int_rad_vout,int_radius_gen
     integer :: update_mu,update_rad,count_its
+    integer :: num_series,num_parallel_cap
     real(dp) :: visc_factor,p_in,p_out,r_in,r_out,r_ave,h,elastance,err
-    real(dp) :: total_unit_surface_area
+    real(dp) :: total_art_surface_area,total_art_volume
+    real(dp) :: total_vein_surface_area, total_vein_volume
     logical :: update_resistance = .False.
     logical :: converged = .False.
+    logical :: igor_mode = .False.
     character(len=60) :: sub_name
     integer :: diagnostics_level
     sub_name = 'capillary_resistance'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
-    numparallel = 6
-    numconvolutes = 6
+    numparallel = 1 !Number of convolute units in parallel
+    num_series = 4 !Number of terminal villi in a row from a single mature intermediate villous
+    num_parallel_cap = 6 !Number of parallel capillaries in an imaged convolute (leiser)
+    numconvolutes = 10 !as per leiser 10 terminal conduits in a single feeding vessel
     numgens = 3
+    igor_mode = .True.
+    
     int_length=1.5_dp!mm %Length of each intermediate villous
     int_radius=0.030_dp/2.0_dp!%radius of each intermediate villous
-    cap_length=3.0_dp/numconvolutes!%mm %length of capillary convolutes
-    cap_rad=(0.0144_dp/2.0_dp +0.0144_dp)/2.0_dp ! %radius of capillary convolutes
     seg_length=int_length/numconvolutes !; %lengh of each intermediate villous segment
+    
+    cap_length=3.0_dp/num_parallel_cap!%mm %length of individual capillary  
+    cap_rad=(0.0144_dp)/2.0_dp ! %radius of individual capillary
+    
+
     visc_factor = 1.0_dp
+    
     total_cap_volume =0.0_dp
+    total_art_volume = 0.0_dp
+    total_vein_volume = 0.0_dp
+    
     total_cap_surface_area = 0.0_dp
-    total_unit_surface_area = 0.0_dp
+    total_art_surface_area = 0.0_dp
+    total_vein_surface_area = 0.0_dp
+    
     if(rheology_type.eq.'constant_visc')then
       mu=0.33600e-02_dp !; %viscosity
       update_mu = 0 !Do not need to update viscosity
@@ -1191,7 +1045,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     nv =  elem_cnct(1,1,nelem) !vein is downstream of the capillary
     int_rad_ain= elem_field(ne_radius,nart) !mm Unstrained radius of inlet villous
     int_rad_vin = elem_field(ne_radius,nv) !mm radius of ouutlet intermediate villous
-    int_rad_aout =  0.03_dp/2.0_dp ! mm radius of mature intermediate villous (average of artery and vein)
+    int_rad_aout =  0.03_dp/2.0_dp ! mm radius of mature intermediate villous artery
     int_rad_vout = 0.03
 
     if(update_mu.eq.1) then
@@ -1201,7 +1055,13 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     if(update_mu.eq.1) then
       call viscosity_from_radius(cap_rad*1000.0_dp,0.45_dp,visc_factor)
     endif
-    R_cap=(8.0_dp*mu*visc_factor*cap_length)/(pi*cap_rad**4.0_dp)/numparallel!%resistance of each capillary convolute segment
+    if(igor_mode)then
+        R_cap =  5.6e5_dp*num_series/(numparallel)
+    else
+    	R_cap=(8.0_dp*mu*visc_factor*cap_length)/(pi*cap_rad**4.0_dp)*num_series/(num_parallel_cap*numparallel)!%resistance of each capillary convolute segment
+    endif
+    
+
 
 
     p_unknowns = 2*numconvolutes*numgens
@@ -1250,10 +1110,19 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
       call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
      endif
       R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
-      total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
-      total_cap_volume = total_cap_volume +   PI*cap_rad**2.0_dp*cap_length*numconvolutes*numparallel
-      total_cap_surface_area = 2.0_dp*PI*cap_rad*cap_length*numconvolutes*numparallel
-      total_unit_surface_area = total_unit_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes
+      total_art_volume = total_art_volume +  (PI*int_radius_gen**2.0_dp*seg_length*numconvolutes)*(2.0_dp**(ng-1.0_dp))
+      
+      if(igor_mode)then
+        total_cap_volume = total_cap_volume +0.65e-3_dp*numconvolutes*num_series*numparallel*(2.0_dp**(ng-1.0_dp))
+        total_cap_surface_area = total_cap_surface_area + 0.135_dp*numconvolutes*num_series*numparallel*(2.0_dp**(ng-1.0_dp))
+      else
+        total_cap_volume = total_cap_volume +   PI*cap_rad**2.0_dp*cap_length*numconvolutes*num_series*numparallel &
+      	  *num_parallel_cap*(2.0_dp**(ng-1.0_dp))
+        total_cap_surface_area = 2.0_dp*PI*cap_rad*cap_length*numconvolutes*num_series*numparallel*num_parallel_cap&
+         *(2.0_dp**(ng-1.0_dp))
+      endif
+      total_art_surface_area = total_art_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes&
+      	*(2.0_dp**(ng-1.0_dp))
 
 
       do nc = 1,numconvolutes
@@ -1320,8 +1189,10 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
         call viscosity_from_radius(int_radius_gen*1000.0_dp,0.45_dp,visc_factor)
       endif
       R_seg=(8.0_dp*mu*visc_factor*seg_length)/(pi*int_radius_gen**4.0_dp)! %resistance of each intermediate villous segment
-      total_cap_volume = total_cap_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes
-      !total_unit_surface_area = total_unit_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes
+      total_vein_volume = total_vein_volume +  PI*int_radius_gen**2.0_dp*seg_length*numconvolutes*(2.0_dp**(ng-1.0_dp))
+      total_vein_surface_area = total_vein_surface_area + PI*2.0_dp*int_radius_gen*seg_length*numconvolutes&
+      	*(2.0_dp**(ng-1.0_dp))
+
 
       do nc = 1,numconvolutes
         i = (ng-1)*numconvolutes + nc !pointer to arteries row number
@@ -1520,8 +1391,11 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     endif
 
     elem_field(ne_vol,nelem) = 2.0_dp * total_cap_volume
-    total_cap_surface_area = 2.0_dp*total_cap_surface_area
-    elem_field(ne_sa,nelem) = 2.0_dp*total_unit_surface_area + total_cap_surface_area
+    elem_field(ne_sa,nelem) = 2.0_dp*(total_cap_surface_area)
+    elem_field(ne_artvol,nelem) = 2.0_dp*total_art_volume
+    elem_field(ne_artsa,nelem) = 2.0_dp*total_art_surface_area
+    elem_field(ne_veinvol,nelem) = 2.0_dp*total_vein_volume
+    elem_field(ne_veinsa,nelem) = 2.0_dp*total_vein_surface_area
 
     call enter_exit(sub_name,2)
 end subroutine capillary_resistance
