@@ -33,7 +33,8 @@ module arrays
   real(dp),allocatable :: node_field(:,:)
 
   real(dp) :: cap_resistance,terminal_resistance,terminal_length, &
-              cap_radius,total_cap_volume,total_cap_surface_area
+              cap_radius,total_cap_volume,total_cap_surface_area,&
+              total_num_term
 
 ! temporary, for debugging:
   real(dp) :: unit_before
@@ -45,7 +46,7 @@ module arrays
     num_conv,num_conv_gen,cap_resistance,terminal_resistance,terminal_length, &
     cap_radius,elem_cnct_no_anast,anastomosis_elem, &
     is_capillary_unit,total_cap_volume,total_cap_surface_area,umbilical_inlets,umbilical_outlets, &
-    art_ven_elem_map,min_art,max_art,min_ven,max_ven
+    art_ven_elem_map,min_art,max_art,min_ven,max_ven,total_num_term
 
 contains
   subroutine set_node_field_value(row, col, value)  
