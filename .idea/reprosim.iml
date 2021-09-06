@@ -5,6 +5,7 @@
     <orderEntry type="jdk" jdkName="Python 2.7 (py2develop)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="repro-examples" />
+    <orderEntry type="module" module-name="placentagen" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />

@@ -773,8 +773,103 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size)
             maxval(art_diameter_by_strahler(order,:)),",",std_diameter    
    enddo  
 
+   !Venous vessel diameter by Strahler order
 
-   
+   !all elements - arterial elements - number of capillaries (the same as number of terminal units)
+   ven_elems = num_elems-num_arterial_elems-num_units
+   if (ven_elems.GT.0)then
+      allocate(ven_diameter_by_strahler(max_strahler,ven_elems))
+      ven_diameter_by_strahler = 0
+      branch_count = 0
+      do ne=num_arterial_elems+1,num_elems
+        if(is_capillary_unit(ne).eq.0)then !if the element is not a capillary
+           ne_order = strahler_orders(ne)
+	    if(ne_order.ge.1)then
+              no_branches = branch_count(ne_order)
+              no_branches = no_branches + 1
+              ven_diameter_by_strahler(ne_order,no_branches) = elem_field(ne_radius,ne) * 2
+              branch_count(ne_order) = no_branches
+	    endif
+        endif
+      enddo
+      print *, "Venous vessel diameter (mm) by Strahler order:"
+      print *, "Strahler_order,number_of_elements,mean_diameter,min_diameter,max_diameter,std"
+      do order=1, max_strahler
+         mean_diameter = sum(ven_diameter_by_strahler(order,:))/branch_count(order)
+         std_diameter = 0
+         do branch=1,branch_count(order)
+            std_diameter = std_diameter + (ven_diameter_by_strahler(order,branch) -mean_diameter)**2
+         enddo
+         std_diameter = std_diameter/branch_count(order)
+         std_diameter = SQRT(std_diameter)
+         print *, order,",",branch_count(order),",",mean_diameter,",", &
+          minval(ven_diameter_by_strahler(order,:),MASK = ven_diameter_by_strahler(order,:) .GT.0),",", &
+           maxval(ven_diameter_by_strahler(order,:)),",",std_diameter
+      enddo
+
+   endif !(ven_elems.GT.0)
+
+
+   !coefficient of variation for terminal flow
+   !standard deviation of flow devided by the mean flow
+   mean_terminal_flow = 0
+   do nu=1,num_units
+      ne = units(nu)
+      mean_terminal_flow = mean_terminal_flow + elem_field(ne_Qdot,ne)
+   enddo
+   mean_terminal_flow = mean_terminal_flow/num_units
+   std_terminal_flow = 0
+   do nu=1,num_units
+      ne = units(nu)
+      std_terminal_flow = std_terminal_flow + (elem_field(ne_Qdot,ne) - mean_terminal_flow)**2
+   enddo
+   std_terminal_flow = std_terminal_flow/num_units
+   std_terminal_flow = SQRT(std_terminal_flow)
+   cof_var_terminal_flow = std_terminal_flow/mean_terminal_flow
+   print *, "Coefficient of variation for terminal flow (%) = ", cof_var_terminal_flow * 100
+   print *, "Mean terminal flow (mm3/s) = ",mean_terminal_flow
+   print *, "Standard deviation of terminal flow (mm3/s) = ",std_terminal_flow
+
+   !terminal flow by generation
+   generations(:) = elem_ordrs(no_gen, :)
+   max_gen = maxval(generations)
+   allocate(terminal_flow_by_gen(max_gen,num_units))
+   allocate(gen_branch_count(max_gen))
+   terminal_flow_by_gen = 0
+   gen_branch_count = 0
+
+   !!print all terminal flows and their corresponding generations to a file
+   !open(10, file=FLOW_GEN_FILE, status="replace")
+   !write(10,*) 'terminal_blood_flow,generation'
+   !do nu=1,num_units
+   !   ne = units(nu)
+   !   ne_order = generations(ne)
+   !   no_branches = gen_branch_count(ne_order)
+   !   no_branches = no_branches + 1
+   !   terminal_flow_by_gen(ne_order,no_branches) = elem_field(ne_Qdot,ne)
+   !   gen_branch_count(ne_order) = no_branches
+   !   write(10,*) elem_field(ne_Qdot,ne),',',ne_order
+   !enddo
+   !close(10)
+   !print *, "Terminal flow (mm**3/s) by generation:"
+   !print *, "Generation,number_of_terminal_units,mean_flow,min_flow,max_flow,std"
+   !do order=1, max_gen
+   !   if(gen_branch_count(order).GT.0)then
+   !      mean_terminal_flow = sum(terminal_flow_by_gen(order,:))/gen_branch_count(order)
+   !      std_terminal_flow = 0
+   !      do branch=1,gen_branch_count(order)
+   !         std_terminal_flow = std_terminal_flow + (terminal_flow_by_gen(order,branch) - mean_terminal_flow)**2
+   !      enddo
+   !      std_terminal_flow = std_terminal_flow/gen_branch_count(order)
+   !      std_terminal_flow = SQRT(std_terminal_flow)
+   !      print *, order,",",gen_branch_count(order),",",mean_terminal_flow,",", &
+   !        minval(terminal_flow_by_gen(order,:),MASK = terminal_flow_by_gen(order,:) .GT.0),",", &
+   !        maxval(terminal_flow_by_gen(order,:)),",",std_terminal_flow
+   !   else
+   !	    print *,order,",0,0,0,0,0"
+   !     endif
+   ! enddo
+
 
    deallocate (is_capillary_unit, STAT = AllocateStatus)
    deallocate(diameter_by_strahler, STAT = AllocateStatus)
@@ -999,8 +1094,8 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     sub_name = 'capillary_resistance'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
-    numparallel = 1 !Number of convolute units in parallel
-    num_series = 4 !Number of terminal villi in a row from a single mature intermediate villous
+    numparallel = 2 !Number of convolute units in parallel
+    num_series = 3 !Number of terminal villi in a row from a single mature intermediate villous
     num_parallel_cap = 6 !Number of parallel capillaries in an imaged convolute (leiser)
     numconvolutes = 10 !as per leiser 10 terminal conduits in a single feeding vessel
     numgens = 3
