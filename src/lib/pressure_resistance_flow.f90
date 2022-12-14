@@ -133,11 +133,11 @@ elseif(bc_type.eq.'flow')then
     inletbc=inlet_flow
 endif
 
-if(outlet_pressure.EQ.0)then
+!if(outlet_pressure.EQ.0)then
     outletbc=2660.0_dp! Pa (20mmHg) default outlet pressure for human umbilical vein
-else
+!else
     outletbc = outlet_pressure
-endif
+!endif
 
 if(diagnostics_level.GT.1)then
 	print *, "inletbc=",inletbc
@@ -628,10 +628,12 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size,output_level)
        sum_terminal_lengths = 0.0_dp
        mean_terminal_flow = 0.0_dp
    endif
+   num_arterial_elems = 0
    do ne=1,num_elems
        !RADIUS IS AVERAGE OF THE TWO RADII
        radius = (elem_field(ne_radius_in,ne)+elem_field(ne_radius_out,ne))/2.0_dp
       if(elem_field(ne_group,ne).eq.0)then
+        num_arterial_elems = num_arterial_elems+1
         arterial_vasc_volume = arterial_vasc_volume + PI*radius**2.0_dp*elem_field(ne_length, ne)
         arterial_surface_area = arterial_surface_area  + PI* 2.0_dp*radius*elem_field(ne_length, ne)
       else if((elem_field(ne_group,ne).eq.1).and.(output_level.eq.1))then
@@ -657,7 +659,7 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size,output_level)
    mean_terminal_flow = mean_terminal_flow/dble(num_units)
    print *, "##########################    ARTERIES   #########################"
    print *, "Arterial elems count",num_arterial_elems
-   print *, "Arterial vascular volume (cm**3/ml) = ",arterial_vasc_volume/1000.0_dp !mm3 to cm3
+   print *, "Arterial vascular volume (cm**3 or ml) = ",arterial_vasc_volume/1000.0_dp !mm3 to cm3
    print*, "Arterial surface area (cm**2) = ", arterial_surface_area/100.0_dp
    print*, "Arterial surface area (m**2) = ", arterial_surface_area/(100.0_dp*10000.0_dp)
    print *, "##########################    ARTERIES   #########################"
@@ -684,17 +686,16 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size,output_level)
        print*, "Vein surface area (m**3) = ", vein_surface_area/(100.0_dp*10000.0_dp)
        print *, "############################   VEINS  #############################"
    endif
-
-   !Print capillary convolute number, generations and total length of capillaries
-   if(capillary_model_type.eq.1)then
-      print *, "Resistance of individual capillary conduits (Pa.s/mm**3) =",cap_resistance
-      print *, "Resistance of terminal unit (Pa.s/mm**3) =",terminal_resistance
-   else
-      print *, "Baseline resistance of individual capillary conduits (Pa.s/mm**3) =",cap_resistance
-      print *, "Average (mean) resistance of terminal unit (Pa.s/mm**3) =", sum_cap_resistance/dble(num_units)
-
-   end if
-
+   if(output_level.eq.1) then
+       !Print capillary convolute number, generations and total length of capillaries
+       if(capillary_model_type.eq.1)then
+          print *, "Resistance of individual capillary conduits (Pa.s/mm**3) =",cap_resistance
+          print *, "Resistance of terminal unit (Pa.s/mm**3) =",terminal_resistance
+       else
+          print *, "Baseline resistance of individual capillary conduits (Pa.s/mm**3) =",cap_resistance
+          print *, "Average (mean) resistance of terminal unit (Pa.s/mm**3) =", sum_cap_resistance/dble(num_units)
+       end if
+    end if
 
    !calculate total vascular resistance (Pressure in - Pressure out)/Blood Flow in
    inlet_flow = 0.0_dp
@@ -761,8 +762,8 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size,output_level)
             minval(diameter_by_strahler(order,:),MASK = diameter_by_strahler(order,:) .GT.0),",", &
             maxval(diameter_by_strahler(order,:)),",",std_diameter
      enddo
-     if(output_level.eq.1)then
          !Arterial vessel diameter by Strahler order
+     if(output_level.eq.1)then
          allocate(art_diameter_by_strahler(max_strahler,num_arterial_elems))
          art_diameter_by_strahler = 0
          branch_count = 0
@@ -789,7 +790,6 @@ subroutine calculate_stats(FLOW_GEN_FILE,image_voxel_size,output_level)
                minval(art_diameter_by_strahler(order,:),MASK = art_diameter_by_strahler(order,:) .GT.0),",", &
                 maxval(art_diameter_by_strahler(order,:)),",",std_diameter
          enddo
-
          !Venous vessel diameter by Strahler order
          !all elements - arterial elements - number of capillaries (the same as number of terminal units)
          ven_elems = num_elems-num_arterial_elems-num_units
