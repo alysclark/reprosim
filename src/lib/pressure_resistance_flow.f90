@@ -226,6 +226,7 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
    endif
    call initialise_solution(inletbc,outletbc,(inletbc-outletbc)/total_resistance, &
               mesh_dof,prq_solution,depvar_at_node,depvar_at_elem,FIX)
+              
    !move initialisation to solver solution (skipping BCs).
    no=0
    do depvar=1,mesh_dof !loop over mesh dofs
@@ -234,6 +235,7 @@ viscosity=0.33600e-02_dp !Pa.s !viscosity: fluid viscosity
          solver_solution(no)=prq_solution(depvar)
       endif
    enddo !mesh_dof
+   
    if((vessel_type.eq."rigid").and.(rheology_type.eq."constant_visc").and.(capillary_model_type.le.1))then
 
      !! ----CALL SOLVER----
