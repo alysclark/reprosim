@@ -6,6 +6,7 @@ set(C_FORTRAN_LIB_SRCS
     diagnostics.f90
     geometry.f90
     indices.f90
+    fetal.f90
     pressure_resistance_flow.f90
     repro_exports.f90
     utils.f90
@@ -15,6 +16,7 @@ set(C_C_LIB_SRCS
     diagnostics.c
     geometry.c
     indices.c
+    fetal.c
     pressure_resistance_flow.c
     repro_exports.c
     utils.c
@@ -26,6 +28,7 @@ set(C_LIB_HDRS
   diagnostics.h
   geometry.h
   indices.h
+  fetal.h
   pressure_resistance_flow.h
   repro_exports.h
   utils.h
