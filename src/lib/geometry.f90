@@ -16,7 +16,8 @@ module geometry
   public append_units
   public calc_capillary_unit_length
   public create_anastomosis
-  public define_1d_elements
+  public define_1d_element_tree
+  public define_1d_element
   public define_node_geometry
   public define_rad_from_file
   public define_rad_from_geom
@@ -1014,7 +1015,7 @@ end subroutine define_capillary_model
 !
 !###################################################################################
 !
-  subroutine define_1d_elements(ELEMFILE,anastomosis_elem_in)
+  subroutine define_1d_element_tree(ELEMFILE,anastomosis_elem_in)
   !*Description:* Reads in an element ipelem file to define a geometry
     use arrays,only: dp, elem_direction,elem_field,elems,elem_cnct,elem_nodes,&
          elem_ordrs,elem_symmetry,elems_at_node,elem_units_below,&
@@ -1023,7 +1024,7 @@ end subroutine define_capillary_model
     use indices
     use diagnostics, only: enter_exit,get_diagnostics_level
     implicit none
-  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_DEFINE_1D_ELEMENTS" :: DEFINE_1D_ELEMENTS
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_DEFINE_1D_ELEMENT_TREE" :: DEFINE_1D_ELEMENT_TREE
 
     character(len=MAX_FILENAME_LEN), intent(in) :: ELEMFILE
     integer, optional :: anastomosis_elem_in
@@ -1035,12 +1036,14 @@ end subroutine define_capillary_model
     character(len=60) :: sub_name
     integer :: diagnostics_level
 
-    sub_name = 'define_1d_elements'
+    sub_name = 'define_1d_element_tree'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
     !Define the anastomoses that are created OUTSIDE of the simulator (that form part of the read in geometry)
     anastomosis_elem = anastomosis_elem_in
+
+    print*, 'alys',anastomosis_elem
 
     open(10, file=ELEMFILE, status='old')
 
@@ -1120,6 +1123,8 @@ end subroutine define_capillary_model
 
     close(10)
 
+    call element_connectivity_1d
+
     ! calculate the element lengths and directions
     do ne=1,num_elems
        np1=elem_nodes(1,ne)
@@ -1135,7 +1140,7 @@ end subroutine define_capillary_model
 
     enddo
 
-    call element_connectivity_1d
+
 
 
     !populate umbilical_inlets array
@@ -1160,6 +1165,7 @@ end subroutine define_capillary_model
 
     if(count(umbilical_inlets.NE.0).EQ.0)then
        print *,"inlet not found"
+       !ARC = > Need to split this routine into two, or create a tree/closed circuit option
        call exit(1)
     endif
 
@@ -1167,7 +1173,111 @@ end subroutine define_capillary_model
 
     call enter_exit(sub_name,2)
 
-  END subroutine define_1d_elements
+  END subroutine define_1d_element_tree
+
+    !
+!###################################################################################
+!
+  subroutine define_1d_element(ELEMFILE)
+  !*Description:* Reads in an element ipelem file to define a geometry
+    use arrays,only: dp, elem_direction,elem_field,elems,elem_cnct,elem_nodes,&
+         elems_at_node,num_elems,num_nodes
+    use indices
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_DEFINE_1D_ELEMENT" :: DEFINE_1D_ELEMENT
+
+    character(len=MAX_FILENAME_LEN), intent(in) :: ELEMFILE
+    !     Local Variables
+    integer :: ibeg,iend,ierror,i_ss_end,j,ne,ne_global,&
+         nn,np,np1,np2,np_global,inlet_counter,umbilical_inlets_temp(100)
+    character(LEN=132) :: ctemp1
+    character(LEN=40) :: sub_string
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    sub_name = 'define_1d_element'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+
+    open(10, file=ELEMFILE, status='old')
+
+    read_number_of_elements : do
+       read(unit=10, fmt="(a)", iostat=ierror) ctemp1
+       if(index(ctemp1, "elements")> 0) then
+          call get_final_integer(ctemp1,num_elems)
+          if(diagnostics_level.GT.1)then
+          	print *, "num_elems", num_elems
+          endif
+          exit read_number_of_elements
+       endif
+    end do read_number_of_elements
+
+!!! allocate memory for element arrays
+    if(allocated(elems)) deallocate(elems) !Array that defines nodal connections between elements
+    allocate(elems(num_elems))
+    if(allocated(elem_cnct)) deallocate(elem_cnct) !Array that defines connections between elements
+    allocate(elem_cnct(-1:1,0:2,0:num_elems))
+    if(allocated(elem_nodes)) deallocate(elem_nodes)
+    allocate(elem_nodes(2,num_elems)) !defines in and out nodes at each element
+    if(allocated(elems_at_node)) deallocate(elems_at_node)
+    allocate(elems_at_node(num_nodes,0:3))
+    if(allocated(elem_field)) deallocate(elem_field)
+    allocate(elem_field(num_ne,num_elems))
+    if(allocated(elem_direction)) deallocate(elem_direction)
+    allocate(elem_direction(3,num_elems))
+
+!!! initialise element arrays
+    elems=0
+    elem_nodes=0
+    elem_field = 0.0_dp
+
+    ne=0
+    !each element has 2 nodes in 1D tree - this is defined in array elem_nodes: elem_nodes (1,element_number ne) = node np"
+    read_an_element : do
+       !.......read element number
+       read(unit=10, fmt="(a)", iostat=ierror) ctemp1
+       if(index(ctemp1, "Element")> 0) then
+          call get_final_integer(ctemp1,ne_global) !get element number
+          ne=ne+1
+          elems(ne)=ne_global
+             read_element_nodes : do
+             read(unit=10, fmt="(a)", iostat=ierror) ctemp1
+             if(index(ctemp1, "global")> 0) then !found the correct line
+                iend=len(ctemp1)
+                ibeg=index(ctemp1,":")+1 !get location of first integer in string
+                sub_string = adjustl(ctemp1(ibeg:iend)) ! get the characters beyond : remove leading blanks
+                i_ss_end=len(sub_string) !get the end location of the sub-string
+                ibeg=1
+                do nn=1,2
+                   iend=index(sub_string," ") !get location of first blank in sub-string
+                   read (sub_string(ibeg:iend-1), '(i7)' ) np_global
+                   call get_local_node(np_global,np) ! get local node np for global node
+                   elem_nodes(nn,ne)=np ! the local node number, not global
+                   if(diagnostics_level.GT.1)then
+                   		print *,"elem_nodes(nn,ne)", nn, ne, "= np", np
+                   endif
+                   sub_string = adjustl(sub_string(iend:i_ss_end)) ! get chars beyond blank, remove leading blanks
+                end do
+                exit read_element_nodes
+             endif !index
+          end do read_element_nodes
+          if(ne.ge.num_elems) exit read_an_element
+       endif
+
+    end do read_an_element
+
+    close(10)
+
+    !call element_connectivity_1d
+
+
+    call enter_exit(sub_name,2)
+
+  END subroutine define_1d_element
+
+
 
 !
 !###################################################################################

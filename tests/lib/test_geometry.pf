@@ -65,11 +65,11 @@
 !***************************************************
 
 @Test
-   subroutine test_define_1d_elements()
+   subroutine test_define_1d_element_tree()
       use pfunit_mod
       use arrays,only: dp,num_elems,elem_nodes,elems_at_node,elem_cnct, &
            num_nodes,node_xyz,nodes,elem_field,elem_direction,elem_ordrs,maxgen
-      use geometry,only: define_1d_elements	
+      use geometry,only: define_1d_element_tree	
       use indices, only: ne_length,num_ord,perfusion_indices
       use other_consts, only: MAX_FILENAME_LEN
       use test_data, only: write_elem_file,delete_elem_file
@@ -86,9 +86,9 @@
       ELEMFILE = ""
       call write_elem_file(ELEMFILE)
           
-      call define_1d_elements(ELEMFILE)
+      call define_1d_element_tree(ELEMFILE)
      
-      !populate test variables - variables populated by sub define_1d_elements
+      !populate test variables - variables populated by sub define_1d_element_tree
       call set_elem_nodes(test_elem_nodes)
       call set_elems_at_node(test_elems_at_node)
       call set_elem_cnct(test_elem_cnct)  
@@ -107,7 +107,7 @@
       
       call delete_elem_file(ELEMFILE)
      
-   end subroutine test_define_1d_elements
+   end subroutine test_define_1d_element_tree
 
 ! subroutines to populate test data 
   
