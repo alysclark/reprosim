@@ -1270,7 +1270,7 @@ end subroutine define_capillary_model
 
     close(10)
 
-    !call element_connectivity_1d
+    call element_connectivity_1d
 
 
     call enter_exit(sub_name,2)
@@ -1776,8 +1776,8 @@ end subroutine define_capillary_model
 !
   subroutine element_connectivity_1d()
   !*Description:* Calculates element connectivity in 1D and stores in elem_cnct
-    use arrays,only: elem_cnct,elem_nodes,elems_at_node,num_elems,num_nodes,elem_cnct_no_anast,&
-                     anastomosis_elem
+    use arrays,only: elem_cnct,elem_nodes,elems_at_node,num_elems,num_nodes!,elem_cnct_no_anast,&
+                    ! anastomosis_elem
     use diagnostics, only: enter_exit,get_diagnostics_level
     implicit none
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_ELEMENT_CONNECTIVITY_1D" :: ELEMENT_CONNECTIVITY_1D
@@ -1834,7 +1834,7 @@ end subroutine define_capillary_model
     endif
     
     elem_cnct=0 !initialise all elem_cnct
-    elem_cnct_no_anast = 0 !initialise
+    !elem_cnct_no_anast = 0 !initialise
 
     DO ne=1,num_elems
        IF(NNT == 2) THEN !1d
@@ -1851,12 +1851,12 @@ end subroutine define_capillary_model
                    elem_cnct(-1,elem_cnct(-1,0,ne2),ne2)=ne !previous element              
                    elem_cnct(1,0,ne)=elem_cnct(1,0,ne)+1
                    elem_cnct(1,elem_cnct(1,0,ne),ne)=ne2
-                   if((ne2.NE.anastomosis_elem).AND.(ne.NE.anastomosis_elem))then
-                      elem_cnct_no_anast(-1,0,ne2)=elem_cnct_no_anast(-1,0,ne2)+1
-                      elem_cnct_no_anast(-1,elem_cnct_no_anast(-1,0,ne2),ne2)=ne !previous element              
-                      elem_cnct_no_anast(1,0,ne)=elem_cnct_no_anast(1,0,ne)+1
-                      elem_cnct_no_anast(1,elem_cnct_no_anast(1,0,ne),ne)=ne2
-                   endif
+                   !if((ne2.NE.anastomosis_elem).AND.(ne.NE.anastomosis_elem))then
+                   !   elem_cnct_no_anast(-1,0,ne2)=elem_cnct_no_anast(-1,0,ne2)+1
+                   !   elem_cnct_no_anast(-1,elem_cnct_no_anast(-1,0,ne2),ne2)=ne !previous element
+                   !   elem_cnct_no_anast(1,0,ne)=elem_cnct_no_anast(1,0,ne)+1
+                   !   elem_cnct_no_anast(1,elem_cnct_no_anast(1,0,ne),ne)=ne2
+                   !endif
                 endif
              ENDIF !ne2
           ENDDO !noelem2
@@ -1886,23 +1886,23 @@ end subroutine define_capillary_model
        	    		ENDDO
        		ENDIF
     		ENDDO
-                print *,"element connectivity without the anastomosis:"
-  		DO ne=1,num_elems
-   	    		print *,""
-   	    		print *,"element",ne 
-       		IF(elem_cnct_no_anast(-1,0,ne).gt.0)THEN
-       	    		print *,"total number of upstream elements:",elem_cnct_no_anast(-1,0,ne)
-       			DO counter=1,elem_cnct_no_anast(-1,0,ne)
-          			print *,"upstream element",elem_cnct_no_anast(-1,counter,ne)
-       	    		ENDDO
-       		ENDIF
-       		IF(elem_cnct_no_anast(1,0,ne).gt.0)THEN
-       	    		print *,"total number of downstream elements:",elem_cnct_no_anast(1,0,ne)
-       			DO counter=1,elem_cnct_no_anast(1,0,ne)
-          			print *,"downstream element",elem_cnct_no_anast(1,counter,ne)
-       	    		ENDDO
-       		ENDIF
-    		ENDDO
+                !print *,"element connectivity without the anastomosis:"
+  		!DO ne=1,num_elems
+   	    !		print *,""
+   	    ! 		print *,"element",ne
+       	!	IF(elem_cnct_no_anast(-1,0,ne).gt.0)THEN
+       	!    		print *,"total number of upstream elements:",elem_cnct_no_anast(-1,0,ne)
+        !			DO counter=1,elem_cnct_no_anast(-1,0,ne)
+        !  			print *,"upstream element",elem_cnct_no_anast(-1,counter,ne)
+       	!    		ENDDO
+        !		ENDIF
+       	!	IF(elem_cnct_no_anast(1,0,ne).gt.0)THEN
+       	!    		print *,"total number of downstream elements:",elem_cnct_no_anast(1,0,ne)
+       	!		DO counter=1,elem_cnct_no_anast(1,0,ne)
+        ! 			print *,"downstream element",elem_cnct_no_anast(1,counter,ne)
+       	!    		ENDDO
+       	!	ENDIF
+    	!	ENDDO
     endif
 
     call enter_exit(sub_name,2)
