@@ -1218,11 +1218,11 @@ end subroutine define_capillary_model
     if(allocated(elems)) deallocate(elems) !Array that defines nodal connections between elements
     allocate(elems(num_elems))
     if(allocated(elem_cnct)) deallocate(elem_cnct) !Array that defines connections between elements
-    allocate(elem_cnct(-1:1,0:2,0:num_elems))
+    allocate(elem_cnct(-1:1,0:10,0:num_elems))!Allows up to 10 elements per node
     if(allocated(elem_nodes)) deallocate(elem_nodes)
     allocate(elem_nodes(2,num_elems)) !defines in and out nodes at each element
     if(allocated(elems_at_node)) deallocate(elems_at_node)
-    allocate(elems_at_node(num_nodes,0:3))
+    allocate(elems_at_node(num_nodes,0:10)) !Allows up to 10 elements per node
     if(allocated(elem_field)) deallocate(elem_field)
     allocate(elem_field(num_ne,num_elems))
     if(allocated(elem_direction)) deallocate(elem_direction)
