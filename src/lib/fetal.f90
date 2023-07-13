@@ -51,7 +51,7 @@ contains
 
         real(dp) :: Avent !Ventricular activation (no units)
         real(dp) :: Aatria !Atrial activation (no units)
-        real(dp) :: dpress,Pgrad,Qnod,Qnew,dQ
+        real(dp) :: dpress,Pgrad,Qnod,Qnew,dQ,Vnod
         logical :: continue
         character(len=60) :: sub_name
         integer :: diagnostics_level
@@ -71,9 +71,13 @@ contains
         !Compartment 1 - Right ventricle
         node_field_fetal(njf_type,1) = 1.0_dp !The right ventricle
         node_field_fetal(njf_press,1) = 869.82_dp
+        node_field_fetal(njf_comp,1) = 1.0_dp/EdiaRV
+
+
         !Compartment 2 - Left ventricle
         node_field_fetal(njf_type,2) = 2.0_dp !The right ventricle
         node_field_fetal(njf_press,2) = 869.82_dp
+        node_field_fetal(njf_comp,2) = 1.0_dp/EdiaRV
         !Compartment 3 - Right atrium
         node_field_fetal(njf_type,3) = 3.0_dp !Any atrium
         node_field_fetal(njf_press,3) = 2.1_dp*133.0_dp
@@ -142,6 +146,13 @@ contains
         !LE
         node_field_fetal(njf_press,23) = 1356.6_dp!Pa
         node_field_fetal(njf_comp,23) = 30.0751879699248_dp !mm3/Pa
+
+
+        do np = 1,num_nodes_fetal
+            node_field_fetal(njf_vol,np) = node_field_fetal(njf_press,np)/node_field_fetal(njf_comp,np)
+            write(*,*) np, node_field_fetal(njf_vol,np)
+        end do
+
 
 
 
@@ -323,7 +334,7 @@ contains
         !20-22 IVC-UV DV
         elem_field_fetal(ne_group,31) = 5.0_dp !R-K-Q unit
         elem_field_fetal(ne_resist,31) =0.1733190784_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,31) = 0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)!
+        elem_field_fetal(nef_K,31) = 0.0_DP!0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)!
         elem_field_fetal(nef_L,31) = 0.0_dp
 
         !20-4 IVC-LA,LA-IVC R-K-Q unit, FO beta special
@@ -354,17 +365,19 @@ contains
 
 
 
-        print *,  node_field_fetal(njf_press,:)
+        !print *,  node_field_fetal(njf_press,:)
 
         time = 0.0_dp !initialise the simulation time.
-
+        open(10, file='results_volume.out', status='replace')
+        open(20, file='results_pressure.out', status='replace')
+        open(30, file='results_flow.out', status='replace')
         continue = .true.
         n = 0
         do while (continue)
             n = n + 1 ! increment the heart beat number
             ttime = 0.0_dp ! each breath starts with ttime=0
             !endtime = T_interval * n - 0.5_dp * dt ! the end time of this breath
-            do while (ttime.lt.0.0001)!T_beat)
+            do while (ttime.lt.T_beat)
                 ttime = ttime + dt ! increment the heartbeat time
                 time = time + dt ! increment the whole simulation time
                 if ((ttime.ge.T_v_delay).and.(ttime.le.T_vs+T_v_delay)) then
@@ -404,7 +417,7 @@ contains
                            call rqkl_unit(dt,dQ,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
                            elem_field_fetal(nef_K,ne), 2.0_dp,elem_field_fetal(nef_L,ne))
                     end if
-                    write(*,*) ne, np_in,np_out,elem_field_fetal(ne_Qdot,ne),elem_field_fetal(ne_group,ne),Pgrad
+                    !write(*,*) ne, np_in,np_out,elem_field_fetal(ne_Qdot,ne),elem_field_fetal(ne_group,ne),Pgrad
                 end do
 
                 do np =1,num_nodes_fetal
@@ -422,38 +435,71 @@ contains
                    end do
                     dQ = Qnod - node_field_fetal(njf_netQ,np)
                     node_field_fetal(njf_netQ,np) = Qnod
-                    write(*,*) np,Qnod, dQ
+                    !write(*,*) np,Qnod, dQ
+
+                    Vnod = node_field_fetal(njf_vol,np)
                 !
                     if(node_field_fetal(njf_type,np).eq.1.0_dp)then!right ventricle
-                        call ventricle_pressure_step(dpress,dt,Avent,U0RV,EsysRV,EdiaRV,RvRV,Qnod,dQ)
+                        call ventricle_pressure_step(dpress,dt,Avent,U0RV,EsysRV,EdiaRV,RvRV,Qnod,dQ,Vnod)
                         node_field_fetal(njf_press,np) = node_field_fetal(njf_press,np) + dpress
                     elseif(node_field_fetal(njf_type,np).eq.2.0_dp)then!left ventricle)
-                        call ventricle_pressure_step(dpress,dt,Avent,U0LV,EsysLV,EdiaLV,RvLV,Qnod,dQ)
+                        call ventricle_pressure_step(dpress,dt,Avent,U0LV,EsysLV,EdiaLV,RvLV,Qnod,dQ,Vnod)
                         node_field_fetal(njf_press,np) = node_field_fetal(njf_press,np) + dpress
                     elseif(node_field_fetal(njf_type,np).eq.3.0_dp)then!Its an atrium
-                        call atrium_pressure_step(dpress,dt,Aatria,U0A,node_field_fetal(njf_comp,np),Qnod,dQ)
+                        call atrium_pressure_step(dpress,dt,Aatria,U0A,node_field_fetal(njf_comp,np),Qnod,dQ,Vnod)
                         node_field_fetal(njf_press,np) = node_field_fetal(njf_press,np) + dpress
                     else ! This is a standard node
-                        call compartment_pressure_step(dpress,dt,node_field_fetal(njf_comp,np), Qnod)
+                        call compartment_pressure_step(dpress,dt,node_field_fetal(njf_comp,np), Qnod,Vnod)
                         node_field_fetal(njf_press,np) = node_field_fetal(njf_press,np) + dpress
                     end if
-
+                    node_field_fetal(njf_vol,np) = node_field_fetal(njf_vol,np)+dQ*dt
                 enddo
 
 
+                WRITE(10,'(27(F15.4,X))')&
+                time, ttime,Avent,Aatria,node_field_fetal(njf_vol,1),&
+                        node_field_fetal(njf_vol,2), node_field_fetal(njf_vol,3),node_field_fetal(njf_vol,4),&
+                node_field_fetal(njf_vol,5), node_field_fetal(njf_vol,6),node_field_fetal(njf_vol,7),&
+                node_field_fetal(njf_vol,8), node_field_fetal(njf_vol,9),node_field_fetal(njf_vol,10),&
+                node_field_fetal(njf_vol,11), node_field_fetal(njf_vol,12),node_field_fetal(njf_vol,13),&
+                node_field_fetal(njf_vol,14), node_field_fetal(njf_vol,15),node_field_fetal(njf_vol,16),&
+                node_field_fetal(njf_vol,17), node_field_fetal(njf_vol,18),node_field_fetal(njf_vol,19),&
+                node_field_fetal(njf_vol,20), node_field_fetal(njf_vol,21),node_field_fetal(njf_vol,22),&
+                node_field_fetal(njf_vol,23)
 
-                write(*,'(4(F7.3),8(F8.2))') &
-                time, ttime,Avent,Aatria,node_field_fetal(njf_press,1),node_field_fetal(njf_press,2),&
-                        node_field_fetal(njf_press,3),node_field_fetal(njf_press,4),elem_field_fetal(ne_Qdot,1)
+                WRITE(20,'(27(F15.4,X))')&
+                time, ttime,Avent,Aatria,node_field_fetal(njf_press,1),&
+                        node_field_fetal(njf_press,2), node_field_fetal(njf_press,3),node_field_fetal(njf_press,4),&
+                node_field_fetal(njf_press,5), node_field_fetal(njf_press,6),node_field_fetal(njf_press,7),&
+                node_field_fetal(njf_press,8), node_field_fetal(njf_press,9),node_field_fetal(njf_press,10),&
+                node_field_fetal(njf_press,11), node_field_fetal(njf_press,12),node_field_fetal(njf_press,13),&
+                node_field_fetal(njf_press,14), node_field_fetal(njf_press,15),node_field_fetal(njf_press,16),&
+                node_field_fetal(njf_press,17), node_field_fetal(njf_press,18),node_field_fetal(njf_press,19),&
+                node_field_fetal(njf_press,20), node_field_fetal(njf_press,21),node_field_fetal(njf_press,22),&
+                node_field_fetal(njf_press,23)
+
+                WRITE(30,'(27(F15.4,X))')&
+                time, ttime,Avent,Aatria,node_field_fetal(njf_netQ,1),&
+                        node_field_fetal(njf_netQ,2), node_field_fetal(njf_netQ,3),node_field_fetal(njf_netQ,4),&
+                node_field_fetal(njf_netQ,5), node_field_fetal(njf_netQ,6),node_field_fetal(njf_netQ,7),&
+                node_field_fetal(njf_netQ,8), node_field_fetal(njf_netQ,9),node_field_fetal(njf_netQ,10),&
+                node_field_fetal(njf_netQ,11), node_field_fetal(njf_netQ,12),node_field_fetal(njf_netQ,13),&
+                node_field_fetal(njf_netQ,14), node_field_fetal(njf_netQ,15),node_field_fetal(njf_netQ,16),&
+                node_field_fetal(njf_netQ,17), node_field_fetal(njf_netQ,18),node_field_fetal(njf_netQ,19),&
+                node_field_fetal(njf_netQ,20), node_field_fetal(njf_netQ,21),node_field_fetal(njf_netQ,22),&
+                node_field_fetal(njf_netQ,23)
+
             end do
-
+            !'(8(F10.4),8(F10.2))')
             !if (n.eq.num_heart_beats) then
 
 
             continue = .false.
             !endif
         end do
-
+        close(10)
+        close(20)
+        close(30)
 
 
         call enter_exit(sub_name,2)
@@ -523,7 +569,7 @@ contains
 
     end subroutine assign_fetal_arrays
 
-    subroutine ventricle_pressure_step(dpress,dt,Avent,U0,Edia,Esys,Rv,Q,dQ)
+    subroutine ventricle_pressure_step(dpress,dt,Avent,U0,Edia,Esys,Rv,Q,dQ,V)
         use diagnostics, only: enter_exit,get_diagnostics_level
 
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_VENTRICLE_PRESSURE_STEP" :: VENTRICLE_PRESSURE_STEP
@@ -536,6 +582,7 @@ contains
         real(dp), intent(in) :: Rv
         real(dp), intent(in) :: Q
         real(dp), intent(in) :: dQ
+        real(dp), intent(in) :: V
 
         character(len=60) :: sub_name
         integer :: diagnostics_level
@@ -545,12 +592,12 @@ contains
         call enter_exit(sub_name,1)
         call get_diagnostics_level(diagnostics_level)
 
-        dpress = dt*(U0*Avent + (Edia + Esys*Avent)*dQ/dt + Rv*Q)
+        dpress = dt*(U0*Avent + (Edia + Esys*Avent)*V + Rv*Q)
         call enter_exit(sub_name,2)
 
     end subroutine ventricle_pressure_step
 
-subroutine atrium_pressure_step(dpress,dt,Aatria,U0,comp,Q,dQ)
+subroutine atrium_pressure_step(dpress,dt,Aatria,U0,comp,Q,dQ,V)
         use diagnostics, only: enter_exit,get_diagnostics_level
 
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_ATRIUM_PRESSURE_STEP" :: ATRIUM_PRESSURE_STEP
@@ -561,6 +608,7 @@ subroutine atrium_pressure_step(dpress,dt,Aatria,U0,comp,Q,dQ)
         real(dp), intent(in) :: comp
         real(dp), intent(in) :: Q
         real(dp), intent(in) :: dQ
+        real(dp), intent(in) :: V
         character(len=60) :: sub_name
         integer :: diagnostics_level
 
@@ -569,13 +617,13 @@ subroutine atrium_pressure_step(dpress,dt,Aatria,U0,comp,Q,dQ)
         call enter_exit(sub_name,1)
         call get_diagnostics_level(diagnostics_level)
 
-        dpress = dt*(U0*Aatria + dQ/(dt*comp))
+        dpress = dt*U0!(U0*Aatria + V/(comp))
         call enter_exit(sub_name,2)
 
     end subroutine atrium_pressure_step
 
 
-subroutine compartment_pressure_step(dpress,dt,comp,Q)
+subroutine compartment_pressure_step(dpress,dt,comp,Q,V)
         use diagnostics, only: enter_exit,get_diagnostics_level
 
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_COMPARTMENT_PRESSURE_STEP" :: COMPARTMENT_PRESSURE_STEP
@@ -583,6 +631,7 @@ subroutine compartment_pressure_step(dpress,dt,comp,Q)
         real(dp), intent(in) :: dt
         real(dp), intent(in) :: comp
         real(dp), intent(in) :: Q
+        real(dp), intent(in) :: V
 
         character(len=60) :: sub_name
         integer :: diagnostics_level
@@ -754,7 +803,7 @@ subroutine one_way_valve(dt,dQ,Q,Pgrad, R, K, L)
 
         Q = Q+dQ
 
-        write(*,*) Pgrad, R, K, Q, beta, Q**beta, 1e-7**beta
+        !write(*,*) Pgrad, R, K, Q, beta, Q**beta, 1e-7**beta
 
         call enter_exit(sub_name,2)
 
