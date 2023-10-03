@@ -12,7 +12,8 @@ module indices
   integer ::num_ne,ne_radius,ne_length,ne_vol,&
        ne_resist,ne_radius_in,&
        ne_radius_out,ne_group,ne_Qdot,ne_viscfact,ne_hb,&
-       ne_sa,ne_artvol,ne_artsa,ne_veinvol,ne_veinsa
+       ne_sa,ne_artvol,ne_artsa,ne_veinvol,ne_veinsa,&
+       ne_comp
   ! indices for unit_field
   integer :: num_nu,nu_perf,nu_blood_press
   integer :: num_nj_fetal, njf_press,njf_vol,njf_comp,njf_type,njf_netQ
@@ -29,7 +30,7 @@ public num_ne,ne_radius,ne_length,ne_vol,&
       ne_resist,ne_radius_in,ne_radius_out,&
       ne_group,ne_Qdot,ne_viscfact,ne_hb,&
       ne_sa,ne_artvol,ne_artsa,ne_veinvol,ne_veinsa,&
-      nef_K, nef_L,nef_dQdt
+      nef_K, nef_L,nef_dQdt,ne_comp
 
 
 public num_nu,nu_perf,nu_blood_press
@@ -62,7 +63,7 @@ contains
     num_nj=1
     nj_bv_press=1 !pressure in blood vessel
     ! indices for elem_field
-    num_ne=16
+    num_ne=17
     ne_radius=1 !strained average radius over whole element
     ne_radius_in=2 !strained radius into an element
     ne_radius_out=3 !strained radius out of an element
@@ -78,6 +79,7 @@ contains
     ne_artsa=14 !Waste of memory
     ne_veinvol = 15 !waste of memory
     ne_veinsa = 16  !waste of memory
+    ne_comp = 17 !compliance
 
     nef_K = 13
     nef_L = 14

@@ -1270,7 +1270,7 @@ end subroutine define_capillary_model
 
     close(10)
 
-    call element_connectivity_1d
+    call element_connectivity_1d_general
 
 
     call enter_exit(sub_name,2)
@@ -1774,14 +1774,13 @@ end subroutine define_capillary_model
 !
 !##################################################################################
 !
-  subroutine element_connectivity_1d()
+  subroutine element_connectivity_1d_general
   !*Description:* Calculates element connectivity in 1D and stores in elem_cnct
     use arrays,only: elem_cnct,elem_nodes,elems_at_node,num_elems,num_nodes!,elem_cnct_no_anast,&
                     ! anastomosis_elem
     use diagnostics, only: enter_exit,get_diagnostics_level
     implicit none
   !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_ELEMENT_CONNECTIVITY_1D" :: ELEMENT_CONNECTIVITY_1D
-  
     !     Local Variables
     integer :: ne,ne2,nn,noelem,np,np2,np1,counter,orphan_counter,np2_1
     integer,parameter :: NNT=2
@@ -1789,7 +1788,8 @@ end subroutine define_capillary_model
     integer :: orphan_nodes(num_nodes)
     integer :: diagnostics_level
 
-    sub_name = 'element_connectivity_1d'
+
+    sub_name = 'element_connectivity_1d_general'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
 
@@ -1834,7 +1834,9 @@ end subroutine define_capillary_model
     endif
     
     elem_cnct=0 !initialise all elem_cnct
-    !elem_cnct_no_anast = 0 !initialise
+    !if(tree)then
+    !    elem_cnct_no_anast = 0 !initialise
+    !end if
 
     DO ne=1,num_elems
        IF(NNT == 2) THEN !1d
@@ -1907,8 +1909,145 @@ end subroutine define_capillary_model
 
     call enter_exit(sub_name,2)
 
+  END subroutine element_connectivity_1d_general
+
+
+    subroutine element_connectivity_1d
+  !*Description:* Calculates element connectivity in 1D and stores in elem_cnct
+    use arrays,only: elem_cnct,elem_nodes,elems_at_node,num_elems,num_nodes,elem_cnct_no_anast,&
+                     anastomosis_elem
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    implicit none
+  !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_ELEMENT_CONNECTIVITY_1D" :: ELEMENT_CONNECTIVITY_1D
+    !     Local Variables
+    integer :: ne,ne2,nn,noelem,np,np2,np1,counter,orphan_counter,np2_1
+    integer,parameter :: NNT=2
+    character(len=60) :: sub_name
+    integer :: orphan_nodes(num_nodes)
+    integer :: diagnostics_level
+
+
+    sub_name = 'element_connectivity_1d'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    ! calculate elems_at_node array: stores the elements that nodes are in
+    ! elems_at_node(node np,0)= total number of elements connected to this node
+    ! elems_at_node(node np, index of each connected element starting at 1) = connected element
+    elems_at_node = 0 !initialise
+
+    DO ne=1,num_elems
+       DO nn=1,2
+          np=elem_nodes(nn,ne)
+          elems_at_node(np,0)=elems_at_node(np,0)+1
+          elems_at_node(np,elems_at_node(np,0))=ne ! local element that np is in
+        ENDDO !nn
+    ENDDO !noelem
+
+    if(diagnostics_level.GT.1)then
+    		DO nn=1,num_nodes
+       		print *," "
+       		print *,"node",nn
+       		print *,"total number of elements connected",elems_at_node(nn,0)
+       		DO ne=1,elems_at_node(nn,0)
+          		print *,"element",elems_at_node(nn,ne)
+       		ENDDO
+    		ENDDO
+    endif
+
+    !check for nodes with 0 elements - exit if any are found
+    orphan_counter = 0
+    DO nn=1,num_nodes
+		if(elems_at_node(nn,0).EQ.0)then
+			orphan_counter = orphan_counter + 1
+			orphan_nodes(orphan_counter) = nn
+		endif
+    ENDDO
+    if(orphan_counter.GT.0)then
+		print *, "found",orphan_counter,"node(s) not connected to any elements"
+		do counter=1,orphan_counter
+			print *,"node",orphan_nodes(counter),"is not connected to any elements"
+		enddo
+		call exit(0)
+    endif
+
+    elem_cnct=0 !initialise all elem_cnct
+    elem_cnct_no_anast = 0 !initialise
+
+    DO ne=1,num_elems
+       IF(NNT == 2) THEN !1d
+          np1=elem_nodes(1,ne) !first local node
+          np2=elem_nodes(2,ne) !second local node
+
+          DO noelem=1,elems_at_node(np2,0) !for each element connected to node np2
+             ne2=elems_at_node(np2,noelem) !get the element number connected to node np2
+             IF(ne2 /= ne)THEN !if element connected to node np2 is not the current element ne
+                !check that the second node of the current element is the first node of ne2
+                np2_1 = elem_nodes(1,ne2)
+                if(np2.EQ.np2_1)then
+                   elem_cnct(-1,0,ne2)=elem_cnct(-1,0,ne2)+1
+                   elem_cnct(-1,elem_cnct(-1,0,ne2),ne2)=ne !previous element
+                   elem_cnct(1,0,ne)=elem_cnct(1,0,ne)+1
+                   elem_cnct(1,elem_cnct(1,0,ne),ne)=ne2
+                   if((ne2.NE.anastomosis_elem).AND.(ne.NE.anastomosis_elem))then
+                      elem_cnct_no_anast(-1,0,ne2)=elem_cnct_no_anast(-1,0,ne2)+1
+                      elem_cnct_no_anast(-1,elem_cnct_no_anast(-1,0,ne2),ne2)=ne !previous element
+                      elem_cnct_no_anast(1,0,ne)=elem_cnct_no_anast(1,0,ne)+1
+                      elem_cnct_no_anast(1,elem_cnct_no_anast(1,0,ne),ne)=ne2
+                   endif
+                endif
+             ENDIF !ne2
+          ENDDO !noelem2
+
+
+       ENDIF
+    ENDDO
+
+	! total count of upstream elements connected to element ne elem_cnct(-1,0,ne)
+	! upstream elements elem_cnct(-1,counter,ne)
+	! total count of downstream elements connected to element ne elem_cnct(1,0,ne)
+	! downstream elements elem_cnct(1,counter,ne)
+    if(diagnostics_level.GT.1)then
+   		DO ne=1,num_elems
+   	    		print *,""
+   	    		print *,"element",ne
+       		IF(elem_cnct(-1,0,ne).gt.0)THEN
+       	    		print *,"total number of upstream elements:",elem_cnct(-1,0,ne)
+       			DO counter=1,elem_cnct(-1,0,ne)
+          			print *,"upstream element",elem_cnct(-1,counter,ne)
+       	    		ENDDO
+       		ENDIF
+       		IF(elem_cnct(1,0,ne).gt.0)THEN
+       	    		print *,"total number of downstream elements:",elem_cnct(1,0,ne)
+       			DO counter=1,elem_cnct(1,0,ne)
+          			print *,"downstream element",elem_cnct(1,counter,ne)
+       	    		ENDDO
+       		ENDIF
+    		ENDDO
+                !print *,"element connectivity without the anastomosis:"
+  		DO ne=1,num_elems
+   	    		print *,""
+   	     		print *,"element",ne
+       		IF(elem_cnct_no_anast(-1,0,ne).gt.0)THEN
+       	    		print *,"total number of upstream elements:",elem_cnct_no_anast(-1,0,ne)
+        			DO counter=1,elem_cnct_no_anast(-1,0,ne)
+          			print *,"upstream element",elem_cnct_no_anast(-1,counter,ne)
+       	    		ENDDO
+        		ENDIF
+       		IF(elem_cnct_no_anast(1,0,ne).gt.0)THEN
+       	    		print *,"total number of downstream elements:",elem_cnct_no_anast(1,0,ne)
+       			DO counter=1,elem_cnct_no_anast(1,0,ne)
+         			print *,"downstream element",elem_cnct_no_anast(1,counter,ne)
+       	    		ENDDO
+       		ENDIF
+    		ENDDO
+    endif
+
+    call enter_exit(sub_name,2)
+
   END subroutine element_connectivity_1d
 !
+
 !###################################################################################
 !
   subroutine evaluate_ordering()
@@ -2030,7 +2169,7 @@ end subroutine define_capillary_model
        endif
     enddo
 
-    if(diagnostics_level.GT.1)then 
+    if(diagnostics_level.GT.1)then
        do ne=1,num_elems
           do counter=1,3		
              print *, "elem_ordrs(",counter,",",ne,")=",elem_ordrs(counter,ne)

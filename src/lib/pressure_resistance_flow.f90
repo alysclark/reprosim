@@ -18,7 +18,7 @@ module pressure_resistance_flow
 
   !Interfaces
   private
-  public evaluate_prq, calculate_stats
+  public evaluate_prq, calculate_stats,tree_resistance,calculate_resistance,capillary_resistance
 contains
 !###################################################################################
 !
@@ -1187,7 +1187,8 @@ subroutine tree_resistance(resistance)
        invres=0.0_dp
        !exclude the anastomosis elements if ant exists
        if(elem_field(ne_group,ne).ne.3.)then!(anastomosis_elem.EQ.0).OR.(ne.NE.anastomosis_elem))then
-          num_connected_elems = elem_cnct(1,0,ne)
+           !write(*,*) ne, elem_res(ne)
+          num_connected_elems = elem_cnct(1,0,ne) !downstream elts
           if(num_connected_elems.GT.0)then
              daughter_counter = 0
              do num2=1,num_connected_elems
@@ -1702,6 +1703,7 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
     sub_name = 'capillary_resistance'
     call enter_exit(sub_name,1)
     call get_diagnostics_level(diagnostics_level)
+
     if(capillary_model_type.eq.1)then
        mu=0.33600e-02_dp !; %viscosity
        resistance = 8.0_dp*mu*elem_field(ne_viscfact,nelem)*elem_field(ne_length,nelem)/ &
@@ -1751,7 +1753,11 @@ subroutine capillary_resistance(nelem,vessel_type,rheology_type,press_in,press_o
       nart = elem_cnct(-1,1,nelem) !capillary unit is downstream of a terminal unit
       nv =  elem_cnct(1,1,nelem) !vein is downstream of the capillary
       int_rad_ain= elem_field(ne_radius,nart) !mm Unstrained radius of inlet villous
-      int_rad_vin = elem_field(ne_radius,nv) !mm radius of ouutlet intermediate villous
+      if(nv.gt.0)then
+        int_rad_vin = elem_field(ne_radius,nv) !mm radius of ouutlet intermediate villous
+      else
+        int_rad_vin = elem_field(ne_radius,nart)*2.0_dp !mm radius of ouutlet intermediate villous
+      end if
       int_rad_aout =  0.03_dp/2.0_dp ! mm radius of mature intermediate villous artery
       int_rad_vout = 0.03
 

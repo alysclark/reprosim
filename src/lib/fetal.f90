@@ -6,6 +6,7 @@ module fetal
   use diagnostics
   use indices
   use other_consts
+  use pressure_resistance_flow, only: calculate_resistance,capillary_resistance
 
   implicit none
   !Module parameters
@@ -52,6 +53,8 @@ contains
         real(dp) :: Avent !Ventricular activation (no units)
         real(dp) :: Aatria !Atrial activation (no units)
         real(dp) :: dpress,Pgrad,Qnod,Qnew,dQ,Vnod,press
+        real(dp) :: art_resistance,ven_resistance
+        character(len=60) :: mesh_type
         logical :: continue
         character(len=60) :: sub_name
         integer :: diagnostics_level
@@ -61,8 +64,8 @@ contains
         call enter_exit(sub_name,1)
         call get_diagnostics_level(diagnostics_level)
 
-        dt = 0.001_dp
-        num_heart_beats = 10
+        dt = 0.0001_dp
+        num_heart_beats = 30
         T_interval = num_heart_beats * T_beat
         write(*,*) "simulating for" , T_interval, " s"
 
@@ -139,7 +142,7 @@ contains
         node_field_fetal(njf_comp,20) = 4.51127819548872_dp
         !PLAC
         node_field_fetal(njf_press,21) = 2979.2_dp!Pa
-        node_field_fetal(njf_comp,21) = 11.2781954887218_dp
+        node_field_fetal(njf_comp,21) = 11.2781954887218_dp !mm3/Pa
         !UV
         node_field_fetal(njf_press,22) = 891.1_dp!Pa
         node_field_fetal(njf_comp,22) = 2.25563909774436_dp
@@ -150,7 +153,7 @@ contains
 
         do np = 1,num_nodes_fetal
             node_field_fetal(njf_vol,np) = node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
-            write(*,*) np,node_field_fetal(njf_press,np), node_field_fetal(njf_vol,np)
+            !write(*,*) np,node_field_fetal(njf_press,np), node_field_fetal(njf_vol,np)
         end do
 
 
@@ -190,7 +193,7 @@ contains
         elem_field_fetal(nef_L,6) = 0.0016_dp*133.0_dp/1000.0_dp !mmHg s2/ml - Pa . s2/mm3
 
         !Elt 7 5-11 PA1-PA2, standard 2 way flow
-         elem_field_fetal(ne_group,7) = 3.0_dp !R_Q-L-unit
+        elem_field_fetal(ne_group,7) = 3.0_dp !R_Q-L-unit
         elem_field_fetal(ne_resist,7) = 0.00933256576_dp ! Pa s /mm3 RPA
         elem_field_fetal(nef_K,7) = 0.0_dp
         elem_field_fetal(nef_L,7) = 0.002_dp*133.0_dp/1000.0_dp
@@ -255,7 +258,7 @@ contains
         elem_field_fetal(nef_K,17) = 0.0_dp
         elem_field_fetal(nef_L,17) = 0.0_dp
 
-        !Elt 18 10-21 AO4-Plac UV
+        !Elt 18 10-21 AO4-Plac UA
         elem_field_fetal(ne_group,18) = 2.0_dp !Simple R-Q unit
         elem_field_fetal(ne_resist,18) = 0.5199572352_dp ! Pa s /mm3
         elem_field_fetal(nef_K,18) = 0.0_dp
@@ -280,7 +283,7 @@ contains
         elem_field_fetal(nef_K,21) = 0.0_dp
         elem_field_fetal(nef_L,21) = 0.0_dp
 
-        !Elt 23 14-15 BR-SVC
+        !Elt 22 14-15 BR-SVC
         elem_field_fetal(ne_group,22) = 2.0_dp !Simple R-Q unit
         elem_field_fetal(ne_resist,22) =1.133240128_dp ! Pa s /mm3 !RBR
         elem_field_fetal(nef_K,22) = 0.0_dp
@@ -310,44 +313,59 @@ contains
         elem_field_fetal(nef_K,26) = 0.0_dp
         elem_field_fetal(nef_L,26) = 0.0_dp
 
-        !19-3 Kid to RA, one way
 
         !20-23 IVC-Leg FV
-        elem_field_fetal(ne_group,28) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,28) =0.0799934208_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,28) = 0.0_dp
-        elem_field_fetal(nef_L,28) = 0.0_dp
+        elem_field_fetal(ne_group,27) = 2.0_dp !Simple R-Q unit
+        elem_field_fetal(ne_resist,27) =0.0799934208_dp ! Pa s /mm3
+        elem_field_fetal(nef_K,27) = 0.0_dp
+        elem_field_fetal(nef_L,27) = 0.0_dp
 
         !20-22 IVC-UV DV ductus venosus
-        elem_field_fetal(ne_group,29) = 5.0_dp !R-K-Q unit
-        elem_field_fetal(ne_resist,29) =0.1733190784_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,29) = 0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)!beta = 2
-        elem_field_fetal(nef_L,29) = 0.0_dp
+        elem_field_fetal(ne_group,28) = 5.0_dp !R-K-Q unit
+        elem_field_fetal(ne_resist,28) =0.1733190784_dp ! Pa s /mm3
+        elem_field_fetal(nef_K,28) = 0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)!beta = 2
+        elem_field_fetal(nef_L,28) = 0.0_dp
 
         !20-4 IVC-LA,LA-IVC R-K-Q unit, FO beta special
-        elem_field_fetal(ne_group,30) = 4.0_dp !R-K-Q unit
-        elem_field_fetal(ne_resist,30) =0.0_dp!0.1733190784_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,30) = 0.4_dp*133.0_dp/(1000.0_dp**(0.625_dp))!
-        elem_field_fetal(nef_L,30) = 0.0_dp
+        elem_field_fetal(ne_group,29) = 4.0_dp !R-K-Q unit
+        elem_field_fetal(ne_resist,29) =0.0_dp!0.1733190784_dp ! Pa s /mm3
+        elem_field_fetal(nef_K,29) = 0.4_dp*133.0_dp/(1000.0_dp**(0.625_dp))!
+        elem_field_fetal(nef_L,29) = 0.0_dp
 
 
         !21-22 Plac-UV RPLAC
+        elem_field_fetal(ne_group,30) = 2.0_dp !Simple R-Q unit
+        elem_field_fetal(ne_resist,30) =0.4532960512_dp ! Pa s /mm3
+        elem_field_fetal(nef_K,30) = 0.0_dp
+        elem_field_fetal(nef_L,30) = 0.0_dp
+
+        !22-17 UV-He - HA
         elem_field_fetal(ne_group,31) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,31) =0.4532960512_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,31) =0.066661184_dp ! Pa s /mm3
         elem_field_fetal(nef_K,31) = 0.0_dp
         elem_field_fetal(nef_L,31) = 0.0_dp
 
-        !22-17 UV-He - HA
+        !3-20 RA-IVC
         elem_field_fetal(ne_group,32) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,32) =0.066661184_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,32) =0.01599868416_dp ! Pa s /mm3
         elem_field_fetal(nef_K,32) = 0.0_dp
         elem_field_fetal(nef_L,32) = 0.0_dp
 
-        !3-20 RA-IVC
-        elem_field_fetal(ne_group,33) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,33) =0.01599868416_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,33) = 0.0_dp
-        elem_field_fetal(nef_L,33) = 0.0_dp
+
+        write(*,*) 'Calculating placental resistance'
+        mesh_type = 'simple_tree'
+        elem_field(ne_viscfact,:) = 1.0_dp !initialise viscosity factor
+        call calculate_resistance(0.33600e-02_dp,mesh_type)
+        call tree_resistance(art_resistance,ven_resistance)
+        write(*,*) 'arterial resistance = ', art_resistance
+        write(*,*) 'venous resistance = ', ven_resistance
+        elem_field_fetal(ne_resist,18) = art_resistance ! Pa s /mm3
+        elem_field_fetal(ne_resist,30) =ven_resistance ! Pa s /mm3 venous side
+        call calculate_compliance(5.0e5_dp,4000.0_dp)
+        node_field_fetal(njf_comp,21) = 11.2781954887218_dp !mm3/Pa
+        !do ne = 1,num_elems
+        !    write(*,*) ne, elem_field(ne_vol,ne)
+        !nd do
         !
         Write(*,*) 'Initialising flows'
         !Initialise flows
@@ -383,14 +401,15 @@ contains
                 end if
                 !write(*,*) ne,np_in, np_out,elem_field_fetal(ne_Qdot,ne),Pgrad
             end if
-            write(*,*) ne,np_in, np_out,elem_field_fetal(ne_Qdot,ne),Pgrad
+            !write(*,*) ne,np_in, np_out,elem_field_fetal(ne_Qdot,ne),Pgrad
         end do
 
         time = 0.0_dp !initialise the simulation time.
         open(10, file='results_volume.out', status='replace')
         open(20, file='results_pressure.out', status='replace')
         open(30, file='results_flow.out', status='replace')
-        WRITE(10,'(27(F15.4,X))')&
+        open(40, file='results_element_flow.out', status='replace')
+        WRITE(10,'(26(F15.4,X,","),(F15.4,X))')&
                 time, ttime,Avent,Aatria,node_field_fetal(njf_vol,1),&
                         node_field_fetal(njf_vol,2), node_field_fetal(njf_vol,3),node_field_fetal(njf_vol,4),&
                 node_field_fetal(njf_vol,5), node_field_fetal(njf_vol,6),node_field_fetal(njf_vol,7),&
@@ -401,7 +420,7 @@ contains
                 node_field_fetal(njf_vol,20), node_field_fetal(njf_vol,21),node_field_fetal(njf_vol,22),&
                 node_field_fetal(njf_vol,23)
 
-        WRITE(20,'(27(F15.4,X))')&
+        WRITE(20,'(26(F15.4,X,","),(F15.4,X))')&
                 time, ttime,Avent,Aatria,node_field_fetal(njf_press,1),&
                         node_field_fetal(njf_press,2), node_field_fetal(njf_press,3),node_field_fetal(njf_press,4),&
                 node_field_fetal(njf_press,5), node_field_fetal(njf_press,6),node_field_fetal(njf_press,7),&
@@ -412,7 +431,7 @@ contains
                 node_field_fetal(njf_press,20), node_field_fetal(njf_press,21),node_field_fetal(njf_press,22),&
                 node_field_fetal(njf_press,23)
 
-        WRITE(30,'(27(F15.4,X))')&
+        WRITE(30,'(26(F15.4,X,","),(F15.4,X)))')&
                 time, ttime,Avent,Aatria,node_field_fetal(njf_netQ,1),&
                         node_field_fetal(njf_netQ,2), node_field_fetal(njf_netQ,3),node_field_fetal(njf_netQ,4),&
                 node_field_fetal(njf_netQ,5), node_field_fetal(njf_netQ,6),node_field_fetal(njf_netQ,7),&
@@ -430,8 +449,8 @@ contains
         do while (continue)
             n = n + 1 ! increment the heart beat number
             ttime = 0.0_dp ! each breath starts with ttime=0
-            !endtime = T_interval * n - 0.5_dp * dt ! the end time of this breath
-            do while (ttime.lt.0.001_dp)!T_beat)
+            write(*,*) 'Initiating beat number',n
+            do while (ttime.lt.T_beat)
                 ttime = ttime + dt ! increment the heartbeat time
                 time = time + dt ! increment the whole simulation time
                 if ((ttime.ge.T_v_delay).and.(ttime.le.T_vs+T_v_delay)) then
@@ -453,8 +472,10 @@ contains
                             Qnod = Qnod+elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
                         end if
                     end do !calculating net flow through the nodes
-                    Vnod = node_field_fetal(njf_vol,np)
-                    write(*,*) np,Qnod,node_field_fetal(njf_vol,np),node_field_fetal(njf_press,np)
+                    node_field_fetal(njf_netQ,np)=Qnod
+                    Vnod = node_field_fetal(njf_vol,np)+dt*Qnod
+                    node_field_fetal(njf_vol,np) = Vnod
+                    !write(*,*) np,Qnod,node_field_fetal(njf_vol,np),node_field_fetal(njf_press,np)
                 if(node_field_fetal(njf_type,np).eq.1.0_dp)then!right ventricle
                         call ventricle_pressure_step(press,Avent,U0RV,EdiaRV,EsysRV,RvRV,Qnod,Vnod)
                         node_field_fetal(njf_press,np) = press
@@ -468,118 +489,68 @@ contains
                         call compartment_pressure_step(dpress,dt,node_field_fetal(njf_comp,np), Qnod,Vnod)
                         node_field_fetal(njf_press,np) = node_field_fetal(njf_press,np) + dpress
                     end if !what type of compartment
-                    write(*,*) np,Qnod,node_field_fetal(njf_vol,np),node_field_fetal(njf_press,np)
+                    !write(*,*) np,Qnod,node_field_fetal(njf_vol,np),node_field_fetal(njf_press,np)
                 end do !nodal balances
 
+                !! Update flows
+                !write(*,*) 'Updating flows'
+                do ne =1,num_elems_fetal !fetal elements
+                    np_in = elem_nodes_fetal(1,ne)
+                    np_out = elem_nodes_fetal(2,ne)
+                    Pgrad = node_field_fetal(njf_press,np_in)-node_field_fetal(njf_press,np_out)
+                    if (elem_field_fetal(ne_group,ne).eq.2.0_dp)then!R-Q unit
+                       call rq_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne))
+                    else if (elem_field_fetal(ne_group,ne).eq.3.0_dp)then!R-Q-L units, initialise to zero L and will be time stepped units
+                        call rql_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
+                            elem_field_fetal(nef_L,ne))
+                    elseif (elem_field_fetal(ne_group,ne).eq.4.0_dp)then!FOROMAN OVALE
+                        if(Pgrad.le.0.0_dp)then
+                           elem_field_fetal(ne_Qdot,ne)=0.0_dp
+                        else
+                           elem_field_fetal(ne_Qdot,ne)=(Pgrad/elem_field_fetal(nef_k,ne))**(0.625_dp)
+                        end if
+                    elseif  (elem_field_fetal(ne_group,ne).eq.5.0_dp)then!R-Q-K unit (ductus venosus
+                        call rqk_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
+                           elem_field_fetal(nef_K,ne))
+                     elseif  (elem_field_fetal(ne_group,ne).eq.6.0_dp)then!R-Q-K-L unit (ductus arterious, will time step
+                        call rqkl_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
+                               elem_field_fetal(nef_K,ne),elem_field_fetal(nef_L,ne))
+                     elseif  (elem_field_fetal(ne_group,ne).eq.8.0_dp)then!Cardiac exits
+                        if(Pgrad.lt.0.0_dp)then
+                            elem_field_fetal(ne_Qdot,ne)=0.0_dp
+                        else
+                            !write(*,*) 'flow through exit',ne
+                            call rqk_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
+                               elem_field_fetal(nef_K,ne))
+                        end if
+                    elseif  (elem_field_fetal(ne_group,ne).eq.1.0_dp)then!Cardiac valves
+                        if(Pgrad.lt.0.0_dp)then
+                            elem_field_fetal(ne_Qdot,ne)=0.0_dp
+                        else
+                            call rqkl_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
+                                elem_field_fetal(nef_K,ne),elem_field_fetal(nef_L,ne))
+                        end if
+                    end if
+                enddo
+                WRITE(40,'(33(F15.4,X,","),(F15.4,X))')&
+                time, ttime,elem_field_fetal(ne_Qdot,1),elem_field_fetal(ne_Qdot,2),elem_field_fetal(ne_Qdot,3),&
+                        elem_field_fetal(ne_Qdot,4),elem_field_fetal(ne_Qdot,5),elem_field_fetal(ne_Qdot,6),&
+                        elem_field_fetal(ne_Qdot,7),elem_field_fetal(ne_Qdot,8),elem_field_fetal(ne_Qdot,9),&
+                        elem_field_fetal(ne_Qdot,10),elem_field_fetal(ne_Qdot,11),elem_field_fetal(ne_Qdot,12),&
+                        elem_field_fetal(ne_Qdot,13),elem_field_fetal(ne_Qdot,14),elem_field_fetal(ne_Qdot,15),&
+                        elem_field_fetal(ne_Qdot,16),elem_field_fetal(ne_Qdot,17),elem_field_fetal(ne_Qdot,18),&
+                        elem_field_fetal(ne_Qdot,19),elem_field_fetal(ne_Qdot,20),elem_field_fetal(ne_Qdot,21),&
+                        elem_field_fetal(ne_Qdot,22),elem_field_fetal(ne_Qdot,23),elem_field_fetal(ne_Qdot,24),&
+                        elem_field_fetal(ne_Qdot,25),elem_field_fetal(ne_Qdot,26),elem_field_fetal(ne_Qdot,27),&
+                        elem_field_fetal(ne_Qdot,28),elem_field_fetal(ne_Qdot,29),elem_field_fetal(ne_Qdot,20),&
+                        elem_field_fetal(ne_Qdot,31),elem_field_fetal(ne_Qdot,32)
+
+
 
 !
-!                do ne = 1, num_elems_fetal
-!                     np_in = elem_nodes_fetal(1,ne)
-!                     np_out = elem_nodes_fetal(2,ne)
-!                     Pgrad = node_field_fetal(njf_press,np_in)-node_field_fetal(njf_press,np_out)
-!                    if(elem_field_fetal(ne_group,ne).eq.1.0_dp)then!One way valve
-!                        !write(*,*) np_in,np_out,Pgrad
-!                        call one_way_valve(dt,dQ,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
-!                        elem_field_fetal(nef_K,ne),elem_field_fetal(nef_L,ne))
-!                        !print *, ne,dt,dQ,elem_field_fetal(ne_Qdot,ne)
-!                    else if (elem_field_fetal(ne_group,ne).eq.2.0_dp)then!R-Q unit
-!                        call rq_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne))
-!                    else if (elem_field_fetal(ne_group,ne).eq.3.0_dp)then!R-Q-L unit
-!                        if(time.eq.dt)then !very first time step, ignore L to get initial flow estimate
-!                            call rq_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne))
-!                        else
-!                            call rql_unit(dt,dQ,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
-!                                elem_field_fetal(nef_L,ne))
-!                        end if
-!                    else if (elem_field_fetal(ne_group,ne).eq.4.0_dp)then!R-Q-K unit, FO
-!                           write(*,*) 'fo',Pgrad,elem_field_fetal(ne_resist,ne),elem_field_fetal(nef_K,ne)
-!                           call rqk_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
-!                           elem_field_fetal(nef_K,ne), 0.625_dp)
-!                           if (elem_field_fetal(ne_Qdot,ne).le.0.0_dp) elem_field_fetal(ne_Qdot,ne)=0.0_dp
-!                    else if (elem_field_fetal(ne_group,ne).eq.5.0_dp)then!R-Q-K unit,
-!                           call rqk_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
-!                           elem_field_fetal(nef_K,ne), 2.0_dp)
-!                    else if (elem_field_fetal(ne_group,ne).eq.6.0_dp)then!R-Q-K unit,
-!                    write(*,*) 'RQKL unit'
-!                        if(time.eq.dt)then !very first time step, ignore L to get initial flow estimate
-!                           call rqkl_unit(dt,dQ,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
-!                           elem_field_fetal(nef_K,ne), 2.0_dp,elem_field_fetal(nef_L,ne),0)
-!                        else
-!                           call rqkl_unit(dt,dQ,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
-!                           elem_field_fetal(nef_K,ne), 2.0_dp,elem_field_fetal(nef_L,ne),1)
-!                        end if
-!                    end if
-!                    !write(*,*) ne, np_in,np_out,elem_field_fetal(ne_Qdot,ne),elem_field_fetal(ne_group,ne),Pgrad
-!                end do
-!
-!                do np =1,num_nodes_fetal
-!                    Qnod = 0.0_dp !Net flow passing through the node
-!                    IF(np.eq.22)then
-!                        write(*,*) 'node',np,elems_at_node_fetal(np,:)
-!                    END IF
-!                    do ne = 1, elems_at_node_fetal(np,0)
-!                        if(np.eq.22)then
-!                        write(*,*) ne,elems_at_node_fetal(np,ne)
-!                        end if
-!                        if (elem_nodes_fetal(1,elems_at_node_fetal(np,ne)).eq.np)then
-!                            !print *, 'first node of element, +ve flow leaves the node'
-!                            !#print *, elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
-!                            Qnod = Qnod-elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
-!                            if(np.eq.22)then
-!                                write(*,*) ne,elem_nodes_fetal(1,elems_at_node_fetal(np,ne)),&
-!                                        elem_nodes_fetal(2,elems_at_node_fetal(np,ne)),&
-!                                       elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
-!                            end if
-!                        else
-!                            !print *, 'second node of element, +ve flow enters the node'
-!                            !print *, elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
-!                            Qnod = Qnod+elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
-!                            if(np.eq.22)then
-!                                write(*,*) ne,elem_nodes_fetal(1,elems_at_node_fetal(np,ne)),&
-!                                        elem_nodes_fetal(2,elems_at_node_fetal(np,ne)),&
-!                                       elem_field_fetal(ne_Qdot,elems_at_node_fetal(np,ne))
-!                            end if
-!                        end if
-!                   end do
-!                    if(np.eq.22)then
-!                        write(*,*) Qnod
-!                    end if
-!                    dQ = Qnod - node_field_fetal(njf_netQ,np) !change in Q over time
-!                    node_field_fetal(njf_netQ,np) = Qnod !net flow into the unit
-!
-!                    !write(*,*) np,Qnod, dQ
-!
-!                    Vnod =node_field_fetal(njf_vol,np)+dQ*dt
-!                !
-!                    if(node_field_fetal(njf_type,np).eq.1.0_dp)then!right ventricle
-!                        if(time.eq.0.0_dp) then
-!                            write(*,*) press, Avent,U0RV,EdiaRV,EsysRV,RvRV,Qnod,Vnod
-!                        end if
-!                        call ventricle_pressure_step(press,Avent,U0RV,EdiaRV,EsysRV,RvRV,Qnod,Vnod)
-!                        node_field_fetal(njf_press,np) = press
-!                    elseif(node_field_fetal(njf_type,np).eq.2.0_dp)then!left ventricle)
-!                        call ventricle_pressure_step(press,Avent,U0LV,EdiaLV,EsysLV,RvLV,Qnod,Vnod)
-!                        node_field_fetal(njf_press,np) = press
-!                    elseif(node_field_fetal(njf_type,np).eq.3.0_dp)then!Its an atrium
-!                        call atrium_pressure_step(press,dt,Aatria,U0A,node_field_fetal(njf_comp,np),Qnod,dQ,Vnod)
-!                        node_field_fetal(njf_press,np) = press
-!                    else ! This is a standard node
-!                        call compartment_pressure_step(dpress,dt,node_field_fetal(njf_comp,np), Qnod,Vnod)
-!                        node_field_fetal(njf_press,np) = node_field_fetal(njf_press,np) + dpress
-!                    end if
-!                    node_field_fetal(njf_vol,np) = Vnod
-!                enddo
-!                       do np = 1, num_nodes_fetal
-!                       write(*,*) np,node_field_fetal(njf_netQ,np)
-!                       end do
-!
-!                       do np = 1, num_nodes_fetal
-!                       write(*,*) np,node_field_fetal(njf_press,np)
-!                       end do
 !
 !
-!
-                WRITE(10,'(27(F15.4,X))')&
+                WRITE(10,'(26(F15.4,X,","),(F15.4,X))')&
                 time, ttime,Avent,Aatria,node_field_fetal(njf_vol,1),&
                         node_field_fetal(njf_vol,2), node_field_fetal(njf_vol,3),node_field_fetal(njf_vol,4),&
                 node_field_fetal(njf_vol,5), node_field_fetal(njf_vol,6),node_field_fetal(njf_vol,7),&
@@ -590,7 +561,7 @@ contains
                 node_field_fetal(njf_vol,20), node_field_fetal(njf_vol,21),node_field_fetal(njf_vol,22),&
                 node_field_fetal(njf_vol,23)
 
-                WRITE(20,'(27(F15.4,X))')&
+                WRITE(20,'(26(F15.4,X,","),(F15.4,X))')&
                 time, ttime,Avent,Aatria,node_field_fetal(njf_press,1),&
                         node_field_fetal(njf_press,2), node_field_fetal(njf_press,3),node_field_fetal(njf_press,4),&
                 node_field_fetal(njf_press,5), node_field_fetal(njf_press,6),node_field_fetal(njf_press,7),&
@@ -601,7 +572,7 @@ contains
                 node_field_fetal(njf_press,20), node_field_fetal(njf_press,21),node_field_fetal(njf_press,22),&
                 node_field_fetal(njf_press,23)
 
-                WRITE(30,'(27(F15.4,X))')&
+                WRITE(30,'(26(F15.4,X,","),(F15.4,X))')&
                 time, ttime,Avent,Aatria,node_field_fetal(njf_netQ,1),&
                         node_field_fetal(njf_netQ,2), node_field_fetal(njf_netQ,3),node_field_fetal(njf_netQ,4),&
                 node_field_fetal(njf_netQ,5), node_field_fetal(njf_netQ,6),node_field_fetal(njf_netQ,7),&
@@ -611,17 +582,16 @@ contains
                 node_field_fetal(njf_netQ,17), node_field_fetal(njf_netQ,18),node_field_fetal(njf_netQ,19),&
                 node_field_fetal(njf_netQ,20), node_field_fetal(njf_netQ,21),node_field_fetal(njf_netQ,22),&
                 node_field_fetal(njf_netQ,23)
-
-            end do !the time step
-!            !'(8(F10.4),8(F10.2))')
-            !if (n.eq.num_heart_beats) then
+            end do
+            if (n.eq.num_heart_beats) then
                 continue = .false.
-            !endif
+            endif
         end do !do while
         close(10)
         close(20)
         close(30)
-
+        close(40)
+        call deallocate_fetal_memory
 
         call enter_exit(sub_name,2)
     end subroutine fetal_model
@@ -653,7 +623,7 @@ contains
         node_xyz_fetal = node_xyz
         if(allocated(node_field_fetal)) deallocate (node_field_fetal)
         allocate (node_field_fetal(num_nj_fetal,num_nodes_fetal))
-        node_field_fetal = node_field_fetal
+        node_field_fetal = 0.0_dp
         num_elems_fetal = num_elems
         if(allocated(elems_fetal)) deallocate(elems_fetal) !Array that defines nodal connections between elements
         allocate(elems_fetal(num_elems_fetal))
@@ -670,6 +640,7 @@ contains
         if(allocated(elem_field_fetal)) deallocate(elem_field_fetal)
         allocate(elem_field_fetal(num_ne,num_elems_fetal))
         elem_field_fetal = elem_field
+        elem_field_fetal = 0.0_dp
         if(allocated(elem_direction_fetal)) deallocate(elem_direction_fetal)
         allocate(elem_direction_fetal(3,num_elems_fetal))
         elem_direction_fetal = elem_direction
@@ -689,6 +660,38 @@ contains
         call enter_exit(sub_name,2)
 
     end subroutine assign_fetal_arrays
+
+    subroutine deallocate_fetal_memory
+
+        use arrays,only: dp,elem_field_fetal, num_elems_fetal, elem_nodes_fetal, nodes_fetal, elems_fetal, num_nodes_fetal,&
+          node_field_fetal,node_xyz_fetal, elem_cnct_fetal,elem_direction_fetal,elems_at_node_fetal,elem_field, num_elems,&
+          elem_nodes, nodes, elems, num_nodes, node_field, elem_cnct,elem_direction,elems_at_node,node_xyz
+        use diagnostics, only: enter_exit,get_diagnostics_level
+
+    !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_ASSIGN_FETAL_ARRAYS" :: ASSIGN FETAL_ARRAYS
+
+        character(len=60) :: sub_name
+        integer :: diagnostics_level
+
+        !------
+        sub_name = 'deallocate_fetal_memory'
+        call enter_exit(sub_name,1)
+        call get_diagnostics_level(diagnostics_level)
+
+        if(allocated(nodes_fetal)) deallocate (nodes_fetal)
+        if(allocated(node_xyz_fetal)) deallocate (node_xyz_fetal)
+        if(allocated(node_field_fetal)) deallocate (node_field_fetal)
+        if(allocated(elems_fetal)) deallocate(elems_fetal) !Array that defines nodal connections between elements
+        if(allocated(elem_cnct_fetal)) deallocate(elem_cnct_fetal) !Array that defines connections between elements
+        if(allocated(elem_nodes_fetal)) deallocate(elem_nodes_fetal)
+        if(allocated(elems_at_node_fetal)) deallocate(elems_at_node_fetal)
+        if(allocated(elem_field_fetal)) deallocate(elem_field_fetal)
+        if(allocated(elem_direction_fetal)) deallocate(elem_direction_fetal)
+
+
+        call enter_exit(sub_name,2)
+
+    end subroutine deallocate_fetal_memory
 
     subroutine ventricle_pressure_step(press,Avent,U0,Edia,Esys,Rv,Q,V)
         use diagnostics, only: enter_exit,get_diagnostics_level
@@ -832,18 +835,17 @@ subroutine one_way_valve(dt,dQ,Q,Pgrad, R, K, L)
 
     end subroutine rq_unit
 
-        subroutine rql_unit(dt,dQ,Q,Pgrad, R,L)
+        subroutine rql_unit(dt,Q,Pgrad, R,L)
         use diagnostics, only: enter_exit,get_diagnostics_level
 
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_RQL_unit :: RQL_UNIT
         real(dp), intent(out) :: dt
-        real(dp), intent(inout) :: dQ
         real(dp), intent(inout) :: Q
         real(dp), intent(in) :: Pgrad
         real(dp), intent(in) :: R
         real(dp), intent(in) :: L
 
-
+        real(dp) :: dQ
         real(dp) :: check_sign
         character(len=60) :: sub_name
         integer :: diagnostics_level
@@ -884,7 +886,7 @@ subroutine one_way_valve(dt,dQ,Q,Pgrad, R, K, L)
 
         !write(*,*) Pgrad, R, K, Q
 
-        !check_sign = R**2.0_dP + 4.0_dp*K*Pgrad
+        check_sign = R**2.0_dP + 4.0_dp*K*Pgrad
         if(check_sign.le.0.0_dp)then
             Q=0.0_dp
         else
@@ -898,53 +900,190 @@ subroutine one_way_valve(dt,dQ,Q,Pgrad, R, K, L)
 
         end subroutine rqk_unit
 
-       subroutine rqkl_unit(dt,dQ,Q,Pgrad, R,K,beta,L,kount)
+       subroutine rqkl_unit(dt,Q,Pgrad, R,K,L)
         use diagnostics, only: enter_exit,get_diagnostics_level
 
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_RQKL_UNIT :: RQKL_UNIT
         real(dp), intent(out) :: dt
-        real(dp), intent(inout) :: dQ
         real(dp), intent(inout) :: Q
         real(dp), intent(in) :: Pgrad
         real(dp), intent(in) :: R
         real(dp), intent(in) :: K
-        real(dp), intent(in) :: beta
         real(dp), intent(in) :: L
-        integer, intent(in) :: kount
 
 
-        real(dp) :: check_sign
+        real(dp) :: dQ
         character(len=60) :: sub_name
         integer :: diagnostics_level
 
         !------
-        sub_name = 'rqk_unit'
+        sub_name = 'rqkl_unit'
         call enter_exit(sub_name,1)
         call get_diagnostics_level(diagnostics_level)
 
-        if(beta.ne.2.0_dp)then
-            write(*,*) 'arrgh beta'
-        end if
+        dQ = dt*(Pgrad - k*Q**2.0_dp - R*Q)/L
+        Q = Q+dQ
 
-        if(kount.eq.0)then
-            check_sign = R**2.0_dp + 4.0_dp*K*abs(Pgrad);
-            if(check_sign.lt.0.0_dp)then
-                Q = 0.0_dp
-            else
-                Q = (-R+sqrt(check_sign))/(2.0_dp*K);
-                if(Pgrad.lt.0) Q=-1.0_dp*Q
-            endif
-        else
-            dQ = dt*(Pgrad - k*Q**2.0_dp - R*Q)/L
-            Q = Q+dQ
-
-        end if
-
-        !write(*,*) Pgrad, R, K, Q, beta, Q**beta, 1e-7**beta
 
         call enter_exit(sub_name,2)
 
     end subroutine rqkl_unit
+
+subroutine calculate_compliance(E,Ptm)
+    use arrays,only: dp,num_nodes,num_elems,elem_nodes,elem_field
+    use indices
+    use diagnostics, only: enter_exit,get_diagnostics_level
+
+    real(dp), intent(in) :: E
+    real(dp), intent(in) :: Ptm
+    character(len=60) :: sub_name
+    integer :: diagnostics_level
+
+    !local variables
+    integer :: ne,nn,np,ny
+    real(dp) :: R0,old_vol,new_vol,h,Rnew
+    real(dp) :: total_vol_old,total_vol_new,compliance,cap_res
+    character(len=60) :: vessel_type,rheol_type
+
+  sub_name = 'calculate_compliance'
+  call enter_exit(sub_name,1)
+  call get_diagnostics_level(diagnostics_level)
+
+  vessel_type = 'elastic'
+  rheol_type = 'constant_visc'
+  total_vol_old = 0.0_dp
+  total_vol_new = 0.0_dp
+  do ne=1,num_elems
+        !if(elem_field(ne_group,ne).eq.1.0_dp)then
+        !total_vol_old = total_vol_old + elem_field(ne_vol,ne)+elem_field(ne_artvol,ne)+elem_field(ne_veinvol,ne)
+        !call capillary_resistance(ne,vessel_type,rheol_type,Ptm+500.0_dp,Ptm-500.0_dp,cap_res,.False.)
+        !total_vol_new = total_vol_old + elem_field(ne_vol,ne)+elem_field(ne_artvol,ne)+elem_field(ne_veinvol,ne)
+        !else
+        R0 = elem_field(ne_radius,ne)
+        if(R0.gt.0.125_dp)then
+            h=0.2_dp*R0
+        else
+            h=0.8_dp*R0
+        endif
+        Rnew = R0+3.0_dp*R0**2*Ptm/(4.0_dp*E*h)
+        elem_field(ne_comp,ne) = (pi*Rnew**2.0_dp*elem_field(ne_length,ne) - &
+                pi*R0**2.0_dp*elem_field(ne_length,ne))/Ptm !mm3/Pa
+
+        total_vol_old = total_vol_old + pi*R0**2.0_dp*elem_field(ne_length,ne)
+        total_vol_new = total_vol_new + pi*Rnew**2.0_dp*elem_field(ne_length,ne)
+        !add umbilical cord
+        if(ne.eq.1) then
+            total_vol_old = total_vol_old + pi*R0**2.0_dp*50.0_dp
+            total_vol_new = total_vol_new + pi*Rnew**2.0_dp*50.0_dp
+        else if (ne.eq.num_arterial_elems+1) then
+            total_vol_old = total_vol_old + pi*R0**2.0_dp*50.0_dp
+            total_vol_new = total_vol_new + pi*Rnew**2.0_dp*50.0_dp
+        end if
+        !write(*,*) ne, elem_field(ne_comp,ne)
+        !end if !capillary
+  enddo
+    compliance = (total_vol_new-total_vol_old)/Ptm
+    write(*,*) Ptm, compliance
+
+
+
+  call enter_exit(sub_name,2)
+end subroutine calculate_compliance
+
+!
+!##################################################################
+!
+subroutine tree_resistance(art_resistance,ven_resistance)
+!*Descripton:* This subroutine calculates the approximate
+! total resistance of a tree so that the solution can be initialised.
+! It underestimates the resistance of venous vessels (converging tree)
+! as some are added in parallel instead of in a series
+    use indices
+    use arrays,only: dp,num_elems,elem_field,&
+                     elem_cnct,umbilical_inlets,&
+                     anastomosis_elem,num_arterial_elems
+    use diagnostics, only: enter_exit,get_diagnostics_level
+    character(len=60) :: sub_name
+!local variables
+    real(dp), intent(out) :: art_resistance
+    real(dp), intent(out) :: ven_resistance
+    real(dp) :: invres,elem_res(num_elems),cap_res
+    integer :: num2,ne,ne2,num_connected_elems,inlet_counter,&
+               daughter_counter,nu,nc
+    integer :: diagnostics_level
+    character(len=60) :: vessel_type,rheol_type
+
+    sub_name = 'tree_resistance'
+    call enter_exit(sub_name,1)
+    call get_diagnostics_level(diagnostics_level)
+
+    vessel_type = 'rigid'
+    rheol_type = 'constant_visc'
+
+
+    do nu = 1, num_units
+        ne = units(nu)
+        nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
+        call  capillary_resistance(nc,vessel_type, rheol_type,4000.0_dp,3000.0_dp,cap_res,.False.)
+    end do
+
+    elem_res(1:num_elems)=elem_field(ne_resist,1:num_elems)
+    !write(*,*) num_arterial_elems,nc
+
+     do ne = 2*num_arterial_elems,num_arterial_elems+1,-1 !Wont work for non matching tree
+        invres=0.0_dp
+        num_connected_elems = elem_cnct(-1,0,ne) !upstream elems
+        if(num_connected_elems.GT.0)then
+             daughter_counter = 0
+             do num2=1,num_connected_elems
+                ne2=elem_cnct(-1,num2,ne)
+                if(elem_field(ne_group,ne).eq.2.0_dp)then
+                    invres=invres+1.0_dp/elem_res(ne2) !resistance in parallel, for daughter branches
+                    daughter_counter = daughter_counter + 1
+                end if
+             enddo
+             if(daughter_counter.GT.0)then
+                elem_res(ne)=elem_res(ne)+1.0_dp/invres !resistance in a series
+             endif !daughters
+          endif !connected
+    end do!nw
+    ven_resistance =  elem_res(num_arterial_elems+1)
+
+    do ne=num_arterial_elems,1,-1
+       invres=0.0_dp
+       !exclude the anastomosis elements if ant exists
+       if(elem_field(ne_group,ne).ne.3.)then!(anastomosis_elem.EQ.0).OR.(ne.NE.anastomosis_elem))then
+           !write(*,*) ne, elem_res(ne)
+          num_connected_elems = elem_cnct(1,0,ne) !downstream elts
+          if(num_connected_elems.GT.0)then
+             daughter_counter = 0
+             do num2=1,num_connected_elems
+                ne2=elem_cnct(1,num2,ne)
+                if((anastomosis_elem.EQ.0).OR.(ne2.NE.anastomosis_elem))then
+                   invres=invres+1.0_dp/elem_res(ne2) !resistance in parallel, for daughter branches
+                   daughter_counter = daughter_counter + 1
+                endif
+             enddo
+             if(daughter_counter.GT.0)then
+                elem_res(ne)=elem_res(ne)+1.0_dp/invres !resistance in a series
+             endif !daughters
+          endif !connected
+       else
+          print *, "excluding anastomosis in total resistance calculation", ne
+       endif !not anastomosis
+    enddo
+
+    !calculate total tree resistance by summing resistances at each inlet in parallel
+    art_resistance = 0
+    do inlet_counter=1,count(umbilical_inlets.NE.0)
+       art_resistance = art_resistance + 1.0_dp/elem_res(umbilical_inlets(inlet_counter)) !resistance in parallel
+    enddo
+    art_resistance = 1.0_dp/art_resistance
+
+
+
+    call enter_exit(sub_name,2)
+end subroutine tree_resistance
 
 
 
