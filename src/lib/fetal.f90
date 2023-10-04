@@ -74,13 +74,13 @@ contains
         !Compartment 1 - Right ventricle
         node_field_fetal(njf_type,1) = 1.0_dp !The right ventricle
         node_field_fetal(njf_press,1) = 869.82_dp!4.0_dp*133.0_dp
-        node_field_fetal(njf_comp,1) = 1.0_dp/EdiaRV
+        node_field_fetal(njf_comp,1) = 0.0_dp!1.0_dp/EdiaRV
 
 
         !Compartment 2 - Left ventricle
-        node_field_fetal(njf_type,2) = 2.0_dp !The right ventricle
+        node_field_fetal(njf_type,2) = 2.0_dp !The left ventricle
         node_field_fetal(njf_press,2) = 873.81_dp! 3.0*133.0_dp
-        node_field_fetal(njf_comp,2) = 1.0_dp/EdiaRV
+        node_field_fetal(njf_comp,2) = 0.0_dp
         !Compartment 3 - Right atrium
         node_field_fetal(njf_type,3) = 3.0_dp !Any atrium
         node_field_fetal(njf_press,3) = 279.30_dp!2.1_dp*133.0_dp
@@ -152,10 +152,15 @@ contains
 
 
         do np = 1,num_nodes_fetal
-            node_field_fetal(njf_vol,np) = node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
-            !write(*,*) np,node_field_fetal(njf_press,np), node_field_fetal(njf_vol,np)
+            if(np.le.2)then
+                node_field_fetal(njf_vol,np) = 8000.!node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
+            elseif(np.le.4)then
+                node_field_fetal(njf_vol,np) = 3000.
+            else
+                node_field_fetal(njf_vol,np) = node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
+            endif
+               !end if!write(*,*) np,node_field_fetal(njf_press,np), node_field_fetal(njf_vol,np)
         end do
-
 
 
 
@@ -326,10 +331,10 @@ contains
         elem_field_fetal(nef_K,28) = 0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)!beta = 2
         elem_field_fetal(nef_L,28) = 0.0_dp
 
-        !20-4 IVC-LA,LA-IVC R-K-Q unit, FO beta special
+        !20-4 IVC-LA,LA-IVC R-K-Q unit, FO beta special !or RA-LA
         elem_field_fetal(ne_group,29) = 4.0_dp !R-K-Q unit
         elem_field_fetal(ne_resist,29) =0.0_dp!0.1733190784_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,29) = 0.4_dp*133.0_dp/(1000.0_dp**(0.625_dp))!
+        elem_field_fetal(nef_K,29) = 0.4_dp*133.0_dp/(1000.0_dp**0.625_dp)!
         elem_field_fetal(nef_L,29) = 0.0_dp
 
 
@@ -351,18 +356,18 @@ contains
         elem_field_fetal(nef_K,32) = 0.0_dp
         elem_field_fetal(nef_L,32) = 0.0_dp
 
-
-        write(*,*) 'Calculating placental resistance'
-        mesh_type = 'simple_tree'
-        elem_field(ne_viscfact,:) = 1.0_dp !initialise viscosity factor
-        call calculate_resistance(0.33600e-02_dp,mesh_type)
-        call tree_resistance(art_resistance,ven_resistance)
-        write(*,*) 'arterial resistance = ', art_resistance
-        write(*,*) 'venous resistance = ', ven_resistance
-        elem_field_fetal(ne_resist,18) = art_resistance ! Pa s /mm3
-        elem_field_fetal(ne_resist,30) =ven_resistance ! Pa s /mm3 venous side
-        call calculate_compliance(5.0e5_dp,4000.0_dp)
-        node_field_fetal(njf_comp,21) = 11.2781954887218_dp !mm3/Pa
+        print *, elem_field_fetal(nef_K,13)
+        !write(*,*) 'Calculating placental resistance'
+        !mesh_type = 'simple_tree'
+        !elem_field(ne_viscfact,:) = 1.0_dp !initialise viscosity factor
+        !call calculate_resistance(0.33600e-02_dp,mesh_type)
+        !call tree_resistance(art_resistance,ven_resistance)
+        !write(*,*) 'arterial resistance = ', art_resistance
+        !write(*,*) 'venous resistance = ', ven_resistance
+        !elem_field_fetal(ne_resist,18) = art_resistance ! Pa s /mm3
+        !elem_field_fetal(ne_resist,30) =ven_resistance ! Pa s /mm3 venous side
+        !call calculate_compliance(5.0e5_dp,4000.0_dp)
+        !node_field_fetal(njf_comp,21) = 11.2781954887218_dp !mm3/Pa
         !do ne = 1,num_elems
         !    write(*,*) ne, elem_field(ne_vol,ne)
         !nd do
@@ -382,7 +387,7 @@ contains
                if(Pgrad.le.0.0_dp)then
                    elem_field_fetal(ne_Qdot,ne)=0.0_dp
                else
-                   elem_field_fetal(ne_Qdot,ne)=(Pgrad/elem_field_fetal(nef_k,ne))**(0.625_dp)
+                   elem_field_fetal(ne_Qdot,ne)=(Pgrad/elem_field_fetal(nef_k,ne))**(1.0_dp/0.625_dp)
                end if
                !write(*,*) ne,np_in, np_out,elem_field_fetal(ne_Qdot,ne),Pgrad
              elseif  (elem_field_fetal(ne_group,ne).eq.5.0_dp)then!R-Q-K unit (ductus venosus
@@ -507,7 +512,7 @@ contains
                         if(Pgrad.le.0.0_dp)then
                            elem_field_fetal(ne_Qdot,ne)=0.0_dp
                         else
-                           elem_field_fetal(ne_Qdot,ne)=(Pgrad/elem_field_fetal(nef_k,ne))**(0.625_dp)
+                           elem_field_fetal(ne_Qdot,ne)=(Pgrad/elem_field_fetal(nef_k,ne))**(1.0_dp/0.625_dp)
                         end if
                     elseif  (elem_field_fetal(ne_group,ne).eq.5.0_dp)then!R-Q-K unit (ductus venosus
                         call rqk_unit(dt,elem_field_fetal(ne_Qdot,ne),Pgrad,elem_field_fetal(ne_resist,ne),&
