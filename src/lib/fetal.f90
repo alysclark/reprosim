@@ -19,20 +19,21 @@ module fetal
   private
   public fetal_model
   public assign_fetal_arrays
-
-  real(dp),parameter,private :: T_beat = 0.43_dp         ! heart beat period (s)
-  real(dp),parameter,private :: T_vs  = 0.215_dp ! Time period of ventricular contraction (s)
-  real(dp), parameter,private :: T_as = 0.1075_dp !Time period of atrial contraction (s)
-  real(dp), parameter,private :: T_v_delay = 0.1075_dp !delay in ventrial contraction (compare to atria) (s)
-  real(dp), parameter, private :: U0RV = 5332.89_dp !Pa
-  real(dp), parameter, private :: EsysRV = 0.399967_dp !Pa/mm3
-  real(dp), parameter, private :: EdiaRV = 0.0399967_dp !Pa/mm3
-  real(dp), parameter, private :: RvRV = 0.010665 !Pa.s/mm3
-  real(dp), parameter, private :: U0LV = 5332.89_dp !Pa
-  real(dp), parameter, private :: EsysLV = 0.399967_dp !Pa/mm3
-  real(dp), parameter, private :: EdiaLV = 0.0399967_dp !Pa/mm3
-  real(dp), parameter, private :: RvLV = 0.010665_dp !Pa.s/mm3
-  real(dp), parameter, private :: U0A = 399.967_dp !Pa
+  real(dp), parameter, private :: mouse_weight = 0.0012_dp !kg
+  real(dp), parameter, private ::  human_weight = 3.0255_dp !kg
+  real(dp),parameter,private :: T_beat = 0.43_dp/2.0_dp         ! heart beat period (s)
+  real(dp),parameter,private :: T_vs  = 0.215_dp/2.0_dp ! Time period of ventricular contraction (s)
+  real(dp), parameter,private :: T_as = 0.1075_dp/2.0_dp !Time period of atrial contraction (s)
+  real(dp), parameter,private :: T_v_delay = 0.1075_dp/2.0_dp !delay in ventrial contraction (compare to atria) (s)
+  real(dp), parameter, private :: U0RV = 5332.89_dp*(mouse_weight/human_weight)**0.1_dp !Pa
+  real(dp), parameter, private :: EsysRV = 0.399967_dp*(mouse_weight/human_weight)**(-1.1_dp) !Pa/mm3
+  real(dp), parameter, private :: EdiaRV = 0.0399967_dp*(mouse_weight/human_weight)**(-0.8_dp)  !Pa/mm3
+  real(dp), parameter, private :: RvRV = 0.010665!*(mouse_weight/human_weight)**(-1.0_dp)  !Pa.s/mm3
+  real(dp), parameter, private :: U0LV = 5332.89_dp*(mouse_weight/human_weight)**0.1_dp !Pa
+  real(dp), parameter, private :: EsysLV = 0.399967_dp*(mouse_weight/human_weight)**(-1.1_dp) !Pa/mm3
+  real(dp), parameter, private :: EdiaLV = 0.0399967_dp*(mouse_weight/human_weight)**(-0.8_dp) !Pa/mm3
+  real(dp), parameter, private :: RvLV = 0.010665_dp!*(mouse_weight/human_weight)**(-1.0_dp)  !Pa.s/mm3
+  real(dp), parameter, private :: U0A = 399.967_dp*(mouse_weight/human_weight)**0.1_dp !Pa
 
 
 contains
@@ -84,78 +85,78 @@ contains
         !Compartment 3 - Right atrium
         node_field_fetal(njf_type,3) = 3.0_dp !Any atrium
         node_field_fetal(njf_press,3) = 279.30_dp!2.1_dp*133.0_dp
-        node_field_fetal(njf_comp,3) = 2.0_dp*1000.0_dp/133.0_dp !ml/mmHg to mm3/Pa.
+        node_field_fetal(njf_comp,3) = 2.0_dp*1000.0_dp/133.0_dp*(mouse_weight/human_weight)**(0.5_dp) !ml/mmHg to mm3/Pa.
         !Compartment 4 - Left atrium
         node_field_fetal(njf_type,4) = 3.0_dp !Any atrium
         node_field_fetal(njf_press,4) = 399.0_dp! 3.0_dp*133.0_dp !m
-        node_field_fetal(njf_comp,4) = 1.0_dp*1000.0_dp/133.0_dp !ml/mmHg to mm3/Pa.
+        node_field_fetal(njf_comp,4) = 1.0_dp*1000.0_dp/133.0_dp*(mouse_weight/human_weight)**(0.5_dp) !ml/mmHg to mm3/Pa.
         !Compartment 5 PA1
         node_field_fetal(njf_press,5) = 5852.0_dp! 44.0_dp*133.0_dp !m
-        node_field_fetal(njf_comp,5) = 0.08*1000.0_dp/133.0_dp !ml/mmHg to mm3/Pa
+        node_field_fetal(njf_comp,5) = 0.08*1000.0_dp/133.0_dp*(mouse_weight/human_weight)**(1.33_dp) !ml/mmHg to mm3/Pa
         do np = 5,num_nodes_fetal
             node_field_fetal(njf_type,np) = 4.0_dp !Generic compartment
         end do
         !AA
         node_field_fetal(njf_press,6) = 5905.20_dp!44.4_dp*133.0_dp !Pa
-        node_field_fetal(njf_comp,6) = 0.37593984962406_dp !mm3/Pa
+        node_field_fetal(njf_comp,6) = 0.37593984962406_dp*(mouse_weight/human_weight)**(1.33_dp)  !mm3/Pa
         !AO1
         node_field_fetal(njf_press,7) = 5732.30 !Pa
-        node_field_fetal(njf_comp,7) = 0.601503759398496_dp
+        node_field_fetal(njf_comp,7) = 0.601503759398496_dp*(mouse_weight/human_weight)**(1.33_dp)
         !AO2
         node_field_fetal(njf_press,8) = 5506.2_dp!Pa
-        node_field_fetal(njf_comp,8) = 0.526315789473684_dp
+        node_field_fetal(njf_comp,8) = 0.526315789473684_dp*(mouse_weight/human_weight)**(1.33_dp)
         !Ao3
         node_field_fetal(njf_press,9) = 5426.4_dp!Pa
-        node_field_fetal(njf_comp,9) = 0.300751879699248_dp
+        node_field_fetal(njf_comp,9) = 0.300751879699248_dp*(mouse_weight/human_weight)**(1.33_dp)
         !AO4
         node_field_fetal(njf_press,10) = 5359.9_dp!Pa
-        node_field_fetal(njf_comp,10) = 0.37593984962406_dp
+        node_field_fetal(njf_comp,10) = 0.37593984962406_dp*(mouse_weight/human_weight)**(1.33_dp)
         !PA2
         node_field_fetal(njf_press,11) = 5732.3_dp!Pa
-        node_field_fetal(njf_comp,11) = 0.601503759398496_dp
+        node_field_fetal(njf_comp,11) = 0.601503759398496_dp*(mouse_weight/human_weight)**(1.33_dp)
         !Lung
         node_field_fetal(njf_press,12) = 1463.0_dp!Pa
-        node_field_fetal(njf_comp,12) = 3.00751879699248_dp
+        node_field_fetal(njf_comp,12) = 3.00751879699248_dp*(mouse_weight/human_weight)**(1.33_dp)
         !CA
         node_field_fetal(njf_press,13) = 5599.3_dp!Pa
-        node_field_fetal(njf_comp,13) = 0.075187969924812_dp
+        node_field_fetal(njf_comp,13) = 0.075187969924812_dp*(mouse_weight/human_weight)**(1.33_dp)
         !BR
         node_field_fetal(njf_press,14) = 4309.2_dp!Pa
-        node_field_fetal(njf_comp,14) = 2.25563909774436_dp
+        node_field_fetal(njf_comp,14) = 2.25563909774436_dp*(mouse_weight/human_weight)**(1.33_dp)
         !SVC
         node_field_fetal(njf_press,15) = 625.1_dp!Pa
-        node_field_fetal(njf_comp,15) = 7.5187969924812_dp
+        node_field_fetal(njf_comp,15) = 7.5187969924812_dp*(mouse_weight/human_weight)**(1.33_dp)
         !UB
         node_field_fetal(njf_press,16) = 2566.9_dp!Pa
-        node_field_fetal(njf_comp,16) = 6.39097744360902_dp
+        node_field_fetal(njf_comp,16) = 6.39097744360902_dp*(mouse_weight/human_weight)**(1.33_dp)
         !HE
         node_field_fetal(njf_press,17) = 678.3_dp!Pa
-        node_field_fetal(njf_comp,17) = 22.5563909774436_dp
+        node_field_fetal(njf_comp,17) = 22.5563909774436_dp*(mouse_weight/human_weight)**(1.33_dp)
         !INTE
         node_field_fetal(njf_press,18) = 1476.3_dp!Pa
-        node_field_fetal(njf_comp,18) = 1.8796992481203_dp
+        node_field_fetal(njf_comp,18) = 1.8796992481203_dp*(mouse_weight/human_weight)**(1.33_dp)
         !KID
         node_field_fetal(njf_press,19) = 4269.3_dp!Pa
-        node_field_fetal(njf_comp,19) =  0.150375939849624_dp
+        node_field_fetal(njf_comp,19) =  0.150375939849624_dp*(mouse_weight/human_weight)**(1.33_dp)
         !IVC
         node_field_fetal(njf_press,20) = 571.9!Pa
-        node_field_fetal(njf_comp,20) = 4.51127819548872_dp
+        node_field_fetal(njf_comp,20) = 4.51127819548872_dp*(mouse_weight/human_weight)**(1.33_dp)
         !PLAC
         node_field_fetal(njf_press,21) = 2979.2_dp!Pa
-        node_field_fetal(njf_comp,21) = 11.2781954887218_dp !mm3/Pa
+        node_field_fetal(njf_comp,21) = 11.2781954887218_dp !mm3/Pa*(mouse_weight/human_weight)**(1.33_dp)
         !UV
         node_field_fetal(njf_press,22) = 891.1_dp!Pa
-        node_field_fetal(njf_comp,22) = 2.25563909774436_dp
+        node_field_fetal(njf_comp,22) = 2.25563909774436_dp*(mouse_weight/human_weight)**(1.33_dp)
         !LE
         node_field_fetal(njf_press,23) = 1356.6_dp!Pa
-        node_field_fetal(njf_comp,23) = 30.0751879699248_dp !mm3/Pa
+        node_field_fetal(njf_comp,23) = 30.0751879699248_dp*(mouse_weight/human_weight)**(1.33_dp)  !mm3/Pa*(mouse_weight/human_weight)**(1.33_dp)
 
 
         do np = 1,num_nodes_fetal
             if(np.le.2)then
-                node_field_fetal(njf_vol,np) = 8000.!node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
+                node_field_fetal(njf_vol,np) = 0.8_dp!node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
             elseif(np.le.4)then
-                node_field_fetal(njf_vol,np) = 3000.
+                node_field_fetal(njf_vol,np) = 0.3_dp
             else
                 node_field_fetal(njf_vol,np) = node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
             endif
@@ -167,196 +168,198 @@ contains
         !ELement 1, 1-5 RV-PA1, one way flow should occur when RV pressure > PA pressure
         elem_field_fetal(ne_group,1) = 8.0_dp !One way valve
         elem_field_fetal(ne_resist,1) = 0.0_dp
-        elem_field_fetal(nef_K,1) = 0.001_dp *133.0_dp/(1000.0_dp*1000.0_dp)!mmHg s2/ml2 -> Pa.s2/mm6
+        elem_field_fetal(nef_K,1) = 0.001_dp *133.0_dp/(1000.0_dp*1000.0_dp)*(mouse_weight/human_weight)**(-1.33_dp) !mmHg s2/ml2 -> Pa.s2/mm6
         elem_field_fetal(nef_L,1) = 0.0_dp
         !Elt2 2-6 LV-AA, one way flow, should occur when LV pressure > AA pressure
         elem_field_fetal(ne_group,2) = 8.0_dp !One way valve
         elem_field_fetal(ne_resist,2) = 0.0_dp
-        elem_field_fetal(nef_K,2) = 0.001_dp *133.0_dp/(1000.0_dp*1000.0_dp)!mmHg s2/ml2 -> Pa.s2/mm6
+        elem_field_fetal(nef_K,2) = 0.001_dp *133.0_dp/(1000.0_dp*1000.0_dp)*(mouse_weight/human_weight)**(-1.33_dp) !mmHg s2/ml2 -> Pa.s2/mm6
         elem_field_fetal(nef_L,2) = 0.0_dp
         !Elt 3 3-15 RA-SVC, standard 2 2way flow
         elem_field_fetal(ne_group,3) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,3) = 0.0266644736_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,3) = 0.0266644736_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,3) = 0.0_dp
         elem_field_fetal(nef_L,3) = 0.0_dp
         !Elt 4 3-1 RA-RV !One way flow from atrium to ventricle
         elem_field_fetal(ne_group,4) = 1.0_dp !One way valve
         elem_field_fetal(ne_resist,4) = 0.0_dp
-        elem_field_fetal(nef_K,4) = 0.002_dp *133.0_dp/(1000.0_dp*1000.0_dp)!mmHg s2/ml2 -> Pa.s2/mm6
-        elem_field_fetal(nef_L,4) = 0.0016_dp*133.0_dp/1000.0_dp !mmHg s2/ml - Pa . s2/mm3
+        elem_field_fetal(nef_K,4) = 0.002_dp *133.0_dp/(1000.0_dp*1000.0_dp)*(mouse_weight/human_weight)**(-1.33_dp) !mmHg s2/ml2 -> Pa.s2/mm6
+        elem_field_fetal(nef_L,4) = 0.0016_dp*133.0_dp/1000.0_dp*(mouse_weight/human_weight)**(-0.33_dp)  !mmHg s2/ml - Pa . s2/mm3
 
         !Elt 5 4-12 LA to lung, standard 2 way flow
         elem_field_fetal(ne_group,5) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,5) = 0.266644736_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,5) = 0.266644736_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,5) = 0.0_dp
         elem_field_fetal(nef_L,5) = 0.0_dp
+
 
         !Elt 6 4-2 LA-LV One way flow from atrium to ventricle
         elem_field_fetal(ne_group,6) = 1.0_dp !One way valve
         elem_field_fetal(ne_resist,6) = 0.0_dp
-        elem_field_fetal(nef_K,6) = 0.002_dp *133.0_dp/(1000.0_dp*1000.0_dp)!mmHg s2/ml2 -> Pa.s2/mm6
-        elem_field_fetal(nef_L,6) = 0.0016_dp*133.0_dp/1000.0_dp !mmHg s2/ml - Pa . s2/mm3
+        elem_field_fetal(nef_K,6) = 0.002_dp *133.0_dp/(1000.0_dp*1000.0_dp)*(mouse_weight/human_weight)**(-1.33_dp) !mmHg s2/ml2 -> Pa.s2/mm6
+        elem_field_fetal(nef_L,6) = 0.0016_dp*133.0_dp/1000.0_dp*(mouse_weight/human_weight)**(-0.33_dp)  !mmHg s2/ml - Pa . s2/mm3
 
         !Elt 7 5-11 PA1-PA2, standard 2 way flow
         elem_field_fetal(ne_group,7) = 3.0_dp !R_Q-L-unit
-        elem_field_fetal(ne_resist,7) = 0.00933256576_dp ! Pa s /mm3 RPA
+        elem_field_fetal(ne_resist,7) = 0.00933256576_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 RPA
         elem_field_fetal(nef_K,7) = 0.0_dp
-        elem_field_fetal(nef_L,7) = 0.002_dp*133.0_dp/1000.0_dp
+        elem_field_fetal(nef_L,7) = 0.002_dp*133.0_dp/1000.0_dp*(mouse_weight/human_weight)**(-0.33_dp)
 
         !Elt 8 6-7 AA-AO1, standard 2 way flow, not simple R-Qf
         elem_field_fetal(ne_group,8) = 3.0_dp !R-Q-L unit
-        elem_field_fetal(ne_resist,8) = 0.01599868416_dp ! Pa s /mm3 !AA Resistance
+        elem_field_fetal(ne_resist,8) = 0.01599868416_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 !AA Resistance
         elem_field_fetal(nef_K,8) = 0.0_dp
-        elem_field_fetal(nef_L,8) = 0.002_dp*133.0_dp/1000.0_dp !mmHg s2/ml - Pa . s2/mm3
+        elem_field_fetal(nef_L,8) = 0.002_dp*133.0_dp/1000.0_dp*(mouse_weight/human_weight)**(-0.33_dp)  !mmHg s2/ml - Pa . s2/mm3
 
         !Elt 9 7-8 AO1-AO2 standard 2 way flow
         elem_field_fetal(ne_group,9) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,9) =0.0533289472_dp ! Pa s /mm3 RIsthm
+        elem_field_fetal(ne_resist,9) =0.0533289472_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 RIsthm
         elem_field_fetal(nef_K,9) = 0.0_dp
         elem_field_fetal(nef_L,9) = 0.0_dp
 
         !Elt 10 7-13 AO1-CA, CARO
         elem_field_fetal(ne_group,10) = 3.0_dp !R-Q-L unit
-        elem_field_fetal(ne_resist,10) = 0.0399967104_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,10) = 0.0399967104_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,10) = 0.0_dp
-        elem_field_fetal(nef_L,10) = 0.08_dp*133.0_dp/1000.0_dp
+        elem_field_fetal(nef_L,10) = 0.08_dp*133.0_dp/1000.0_dp*(mouse_weight/human_weight)**(-0.33_dp)
 
         !Elt 11 7-16 AO1-UB - RUBA
         elem_field_fetal(ne_group,11) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,11) = 1.066578944_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,11) = 1.066578944_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,11) = 0.0_dp
         elem_field_fetal(nef_L,11) = 0.0_dp
 
         !Elt 12 8-9 AO2-AO3,
         elem_field_fetal(ne_group,12) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,12) = 0.00533289472_dp ! Pa s /mm3 R_DTAO
+        elem_field_fetal(ne_resist,12) = 0.00533289472_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 R_DTAO
         elem_field_fetal(nef_K,12) = 0.0_dp
         elem_field_fetal(nef_L,12) = 0.0_dp
 
         !Elt 13 8-11 AO2-PA2, PA2-AO2, Ductus arteriosus
         elem_field_fetal(ne_group,13) = 6.0_dp !R-Q-K-L unit, beta=2
-        elem_field_fetal(ne_resist,13) = 0.00133322368_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,13) = 0.009_dp*133.0_dp/(1000.0_dp*1000.0_dp)! beta = 2
-        elem_field_fetal(nef_L,13) = 0.006_dp*133.0_dp/1000.0_dp
+        elem_field_fetal(ne_resist,13) = 0.00133322368_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
+        elem_field_fetal(nef_K,13) = 0.009_dp*133.0_dp/(1000.0_dp*1000.0_dp)*(mouse_weight/human_weight)**(-2.5_dp) ! beta = 2
+        elem_field_fetal(nef_L,13) = 0.006_dp*133.0_dp/1000.0_dp*(mouse_weight/human_weight)**(-0.33_dp)
 
         !Elt 14 9-10 AO3-AO4
         elem_field_fetal(ne_group,14) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,14) = 0.00799934208_dp ! Pa s /mm3 !R_DAAO
+        elem_field_fetal(ne_resist,14) = 0.00799934208_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 !R_DAAO
         elem_field_fetal(nef_K,14) = 0.0_dp
         elem_field_fetal(nef_L,14) = 0.0_dp
 
         !Elt 15 9-17 AO3-He FIG
         elem_field_fetal(ne_group,15) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,15) = 10.799111808_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,15) = 10.799111808_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,15) = 0.0_dp
         elem_field_fetal(nef_L,15) = 0.0_dp
 
         !Elt 16 9-18 AO3-Inte MEA
         elem_field_fetal(ne_group,16) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,16) = 4.532960512_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,16) = 4.532960512_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,16) = 0.0_dp
         elem_field_fetal(nef_L,16) = 0.0_dp
 
         !Elt 17 9-19 AO3-Kid REA
         elem_field_fetal(ne_group,17) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,17) = 0.466628288_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,17) = 0.466628288_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,17) = 0.0_dp
         elem_field_fetal(nef_L,17) = 0.0_dp
 
         !Elt 18 10-21 AO4-Plac UA
         elem_field_fetal(ne_group,18) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,18) = 0.5199572352_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,18) = 0.5199572352_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,18) = 0.0_dp
         elem_field_fetal(nef_L,18) = 0.0_dp
 
         !Elt 19 10-23 AO4-Leg Fa
         elem_field_fetal(ne_group,19) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,19) = 0.466628288_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,19) = 0.466628288_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,19) = 0.0_dp
         elem_field_fetal(nef_L,19) = 0.0_dp
 
         !Elt 20 11-12 PA2-Lung,
         elem_field_fetal(ne_group,20) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,20) = 1.799851968_dp ! Pa s /mm3 !Rlung
+        elem_field_fetal(ne_resist,20) = 1.799851968_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 !Rlung
         elem_field_fetal(nef_K,20) = 0.0_dp
         elem_field_fetal(nef_L,20) = 0.0_dp
 
 
         !Elt 21 13-14 CA-BR
         elem_field_fetal(ne_group,21) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,21) =0.399967104_dp ! Pa s /mm3 !RMCA
+        elem_field_fetal(ne_resist,21) =0.399967104_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 !RMCA
         elem_field_fetal(nef_K,21) = 0.0_dp
         elem_field_fetal(nef_L,21) = 0.0_dp
 
         !Elt 22 14-15 BR-SVC
         elem_field_fetal(ne_group,22) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,22) =1.133240128_dp ! Pa s /mm3 !RBR
+        elem_field_fetal(ne_resist,22) =1.133240128_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3 !RBR
         elem_field_fetal(nef_K,22) = 0.0_dp
         elem_field_fetal(nef_L,22) = 0.0_dp
 
         !Elt 24 15-16 SVC-UB - UBV
         elem_field_fetal(ne_group,23) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,23) =0.6532796032_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,23) =0.6532796032_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,23) = 0.0_dp
         elem_field_fetal(nef_L,23) = 0.0_dp
 
         !Elt 25 17-18 He-Inte PORV
         elem_field_fetal(ne_group,24) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,24) =0.933256576_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,24) =0.933256576_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,24) = 0.0_dp
         elem_field_fetal(nef_L,24) = 0.0_dp
 
         !Elt 26 17-20 He-IVC HV
         elem_field_fetal(ne_group,25) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,25) =0.02133157888_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,25) =0.02133157888_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,25) = 0.0_dp
         elem_field_fetal(nef_L,25) = 0.0_dp
 
         !Elt 27 19-20 Kid-IVC REV
         elem_field_fetal(ne_group,26) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,26) =1.866513152_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,26) =1.866513152_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,26) = 0.0_dp
         elem_field_fetal(nef_L,26) = 0.0_dp
 
 
         !20-23 IVC-Leg FV
         elem_field_fetal(ne_group,27) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,27) =0.0799934208_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,27) =0.0799934208_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,27) = 0.0_dp
         elem_field_fetal(nef_L,27) = 0.0_dp
 
         !20-22 IVC-UV DV ductus venosus
         elem_field_fetal(ne_group,28) = 5.0_dp !R-K-Q unit
-        elem_field_fetal(ne_resist,28) =0.1733190784_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,28) = 0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)!beta = 2
+        elem_field_fetal(ne_group,28) = 2.0_dp
+        elem_field_fetal(ne_resist,28) =0.1733190784_dp*(mouse_weight/human_weight)**(-0.55_dp)  ! Pa s /mm3
+        elem_field_fetal(nef_K,28) = 0.26_dp*133.0_dp/(1000.0_dp*1000.0_dp)*(mouse_weight/human_weight)**(-0.8_dp) !beta = 2
         elem_field_fetal(nef_L,28) = 0.0_dp
 
         !20-4 IVC-LA,LA-IVC R-K-Q unit, FO beta special !or RA-LA
         elem_field_fetal(ne_group,29) = 4.0_dp !R-K-Q unit
         elem_field_fetal(ne_resist,29) =0.0_dp!0.1733190784_dp ! Pa s /mm3
-        elem_field_fetal(nef_K,29) = 0.4_dp*133.0_dp/(1000.0_dp**0.625_dp)!
+        elem_field_fetal(nef_K,29) = 0.4_dp*133.0_dp/(1000.0_dp**0.625_dp)*(mouse_weight/human_weight)**(-1.33_dp) !
         elem_field_fetal(nef_L,29) = 0.0_dp
-
+        !!!!!!!!!!!!!! CONNECTS TO HEART
 
         !21-22 Plac-UV RPLAC
         elem_field_fetal(ne_group,30) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,30) =0.4532960512_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,30) =0.4532960512_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,30) = 0.0_dp
         elem_field_fetal(nef_L,30) = 0.0_dp
 
         !22-17 UV-He - HA
         elem_field_fetal(ne_group,31) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,31) =0.066661184_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,31) =0.066661184_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,31) = 0.0_dp
         elem_field_fetal(nef_L,31) = 0.0_dp
 
         !3-20 RA-IVC
         elem_field_fetal(ne_group,32) = 2.0_dp !Simple R-Q unit
-        elem_field_fetal(ne_resist,32) =0.01599868416_dp ! Pa s /mm3
+        elem_field_fetal(ne_resist,32) =0.01599868416_dp*(mouse_weight/human_weight)**(-1.0_dp)  ! Pa s /mm3
         elem_field_fetal(nef_K,32) = 0.0_dp
         elem_field_fetal(nef_L,32) = 0.0_dp
 
-        print *, elem_field_fetal(nef_K,13)
+
         !write(*,*) 'Calculating placental resistance'
         !mesh_type = 'simple_tree'
         !elem_field(ne_viscfact,:) = 1.0_dp !initialise viscosity factor
