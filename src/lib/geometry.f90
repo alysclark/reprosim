@@ -1043,8 +1043,6 @@ end subroutine define_capillary_model
     !Define the anastomoses that are created OUTSIDE of the simulator (that form part of the read in geometry)
     anastomosis_elem = anastomosis_elem_in
 
-    print*, 'alys',anastomosis_elem
-
     open(10, file=ELEMFILE, status='old')
 
     read_number_of_elements : do

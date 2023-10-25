@@ -4,12 +4,12 @@
 #include <string.h>
 
 
-void fetal_model_c();
+void fetal_model_c(double *dt,int *num_heart_beats,double *T_beat,double *T_vs,double *T_as,double *T_v_delay,double *U0RV,double *EsysRV,double *EdiaRV,double *RvRv,double *U0LV,double *EsysLV,double *EdiaLV,double *RvLV,double *U0A);
 void assign_fetal_arrays_c();
 
-void fetal_model()
+void fetal_model(double dt,int num_heart_beats,double T_beat,double T_vs,double T_as,double T_v_delay,double U0RV,double EsysRV,double EdiaRV,double RvRv,double U0LV,double EsysLV,double EdiaLV,double RvLV,double U0A)
 {
-  fetal_model_c();
+  fetal_model_c(&dt,&num_heart_beats,&T_beat,&T_vs,&T_as,&T_v_delay,&U0RV,&EsysRV,&EdiaRV,&RvRv,&U0LV,&EsysLV,&EdiaLV,&RvLV,&U0A);
 }
 
 void assign_fetal_arrays()
