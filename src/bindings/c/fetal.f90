@@ -9,7 +9,7 @@ contains
 !
 !> Perfusion fetal
   subroutine fetal_model_c(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,&
-          U0LV,EsysLV,EdiaLV,RvLV,U0A) bind(C, name="fetal_model_c")
+          U0LV,EsysLV,EdiaLV,RvLV,U0A,V0V,V0A) bind(C, name="fetal_model_c")
     use arrays, only: dp
     use fetal, only: fetal_model
     implicit none
@@ -29,11 +29,13 @@ contains
     real(dp),  intent(in) :: EdiaLV
     real(dp),  intent(in) :: RvLV
     real(dp),  intent(in) :: U0A
+    real(dp), intent(in) :: V0V
+    real(dp), intent(in) :: V0A
 
 #if defined _WIN32 && defined __INTEL_COMPILER
-    call so_fetal_model(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,U0LV,EsysLV,EdiaLV,RvLV,U0A)
+    call so_fetal_model(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,U0LV,EsysLV,EdiaLV,RvLV,U0A,V0V,V0A)
 #else
-    call fetal_model(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,U0LV,EsysLV,EdiaLV,RvLV,U0A)
+    call fetal_model(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,U0LV,EsysLV,EdiaLV,RvLV,U0A,V0V,V0A)
 #endif
 
   end subroutine fetal_model_c

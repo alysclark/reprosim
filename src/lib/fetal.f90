@@ -37,7 +37,8 @@ module fetal
 
 
 contains
-    subroutine fetal_model(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,U0LV,EsysLV,EdiaLV,RvLV,U0A)
+    subroutine fetal_model(dt,num_heart_beats,T_beat,T_vs,T_as,T_v_delay,U0RV,EsysRV,EdiaRV,RvRv,U0LV,EsysLV,EdiaLV,&
+            RvLV,U0A,V0V,V0A)
         use diagnostics, only: enter_exit,get_diagnostics_level
 
     !DEC$ ATTRIBUTES DLLEXPORT,ALIAS:"SO_FETAL_MODEL" :: FETAL_MODEL
@@ -57,6 +58,8 @@ contains
         real(dp),  intent(in) :: EdiaLV! = 0.0399967_dp !Pa/mm3
         real(dp),  intent(in) :: RvLV! = 0.002!0.010665_dp !Pa.s/mm3
         real(dp),  intent(in) :: U0A! = 399.967_dp !Pa
+        real(dp), intent(in) :: V0V ! Initial ventricle volume
+        real(dp), intent(in) :: V0A !Initial atrial volume
 
         real(dp) :: time                  !current time (s)
         real(dp) :: T_interval            ! the total length of the heat beat (s)
@@ -100,14 +103,14 @@ contains
         call import_exelemfield(filename,nef_L)
         total_volume = 0.0_dp
         do np = 1,num_nodes_fetal
-            if(np.le.2)then
-                node_field_fetal(njf_vol,np) = 8000.!node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
-            elseif(np.le.4)then
-                node_field_fetal(njf_vol,np) = 3000.
+            if(node_field_fetal(njf_type,np).le.2.)then
+                node_field_fetal(njf_vol,np) = V0V!node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
+            elseif(node_field_fetal(njf_type,np).eq.3.)then
+                node_field_fetal(njf_vol,np) = V0A!3000.
             else
-                node_field_fetal(njf_vol,np) = 2*node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
+                node_field_fetal(njf_vol,np) = node_field_fetal(njf_press,np)*node_field_fetal(njf_comp,np)
             endif
-            node_field_fetal(njf_vol,np) = 10.0_dp
+            !node_field_fetal(njf_vol,np) = 171.31607815398701_dp*1000.0_dp/num_nodes_fetal
             total_volume = total_volume + node_field_fetal(njf_vol,np)
             !end if!write(*,*) np,node_field_fetal(njf_press,np), node_field_fetal(njf_vol,np)
         end do
