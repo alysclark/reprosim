@@ -124,13 +124,20 @@ contains
         call tree_resistance(art_resistance,ven_resistance)
         write(*,*) 'Arterial resistance (Pa.s/mm3)= ', art_resistance
         write(*,*) 'Venous resistance (Pa.s/mm3)= ', ven_resistance
+
         do ne =1,num_elems_fetal
             if (abs(elem_field_fetal(ne_group,ne)-9.0_dp).lt.loose_tol)then!Umbilical artery
+                write(*,*) 'Previous normal arterial resistance',elem_field_fetal(ne_resist,ne)
                 elem_field_fetal(ne_resist,ne) = art_resistance ! Pa s /mm3
+                write(*,*) 'New normal arterial resistance',elem_field_fetal(ne_resist,ne)
             elseif(abs(elem_field_fetal(ne_group,ne)-10.0_dp).lt.loose_tol)then!Umbilical vein
+                write(*,*) 'Previous normal venous resistance',elem_field_fetal(ne_resist,ne)
                 elem_field_fetal(ne_resist,ne) = ven_resistance ! Pa s /mm3
+                write(*,*) 'NEw normal venous resistance',elem_field_fetal(ne_resist,ne)
             end if
         end do
+
+
 
         Write(*,*) 'Initialising flows'
         !Initialise flows
@@ -768,14 +775,15 @@ subroutine tree_resistance(art_resistance,ven_resistance)
     vessel_type = 'rigid'
     rheol_type = 'constant_visc'
 
-
+    elem_res(1:num_elems)=elem_field(ne_resist,1:num_elems)
     do nu = 1, num_units
         ne = units(nu)
         nc = elem_cnct(1,1,ne) !capillary unit is downstream of a terminal unit
         call  capillary_resistance(nc,vessel_type, rheol_type,4000.0_dp,3000.0_dp,cap_res,.False.)
+        elem_res(ne) = elem_res(ne)+cap_res
     end do
 
-    elem_res(1:num_elems)=elem_field(ne_resist,1:num_elems)
+
 
      do ne = 2*num_arterial_elems,num_arterial_elems+1,-1 !Wont work for non matching tree
         invres=0.0_dp
